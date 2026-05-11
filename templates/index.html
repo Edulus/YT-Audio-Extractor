@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YT Audio Extractor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0b0d;
+      --bg-elev: #131418;
+      --bg-elev-2: #1a1c22;
+      --border: #2a2d35;
+      --border-strong: #3a3e48;
+      --text: #f5f5f7;
+      --text-dim: #9a9ea8;
+      --text-faint: #6b6f78;
+      --accent: #ffb020;
+      --accent-strong: #ffc24d;
+      --accent-dim: rgba(255, 176, 32, 0.12);
+      --danger: #ff5a5a;
+      --success: #4ade80;
+      --radius: 6px;
+      --radius-lg: 10px;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: 'DM Sans', system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button { font-family: inherit; color: inherit; cursor: pointer; }
+    input  { font-family: inherit; }
+
+    .app {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    /* ---- Header ---- */
+    header.top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    header.top h1 {
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin: 0;
+      text-transform: uppercase;
+    }
+    header.top h1 .accent { color: var(--accent); }
+    header.top .subtitle {
+      margin: 6px 0 0;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 400;
+      font-style: italic;
+    }
+    header.top .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ---- Section labels ---- */
+    .section-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin: 0 0 12px;
+    }
+
+    section.block { margin-bottom: 32px; }
+
+    /* ---- Search ---- */
+    .search-row {
+      display: flex;
+      gap: 10px;
+    }
+    .search-input {
+      flex: 1;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      color: var(--text);
+      font-size: 15px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .search-input::placeholder { color: var(--text-faint); }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: var(--bg-elev-2);
+    }
+    .btn {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 14px 22px;
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      transition: all 0.15s;
+    }
+    .btn:hover:not(:disabled) {
+      border-color: var(--border-strong);
+      background: var(--bg-elev-2);
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn.primary {
+      background: var(--accent);
+      color: #1a1200;
+      border-color: var(--accent);
+    }
+    .btn.primary:hover:not(:disabled) {
+      background: var(--accent-strong);
+      border-color: var(--accent-strong);
+    }
+    .btn.ghost {
+      background: transparent;
+      border-color: var(--border);
+    }
+
+    /* ---- Settings ---- */
+    .settings {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 6px 0;
+    }
+    .settings-row + .settings-row { margin-top: 4px; }
+    .settings-row > .label {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      width: 80px;
+      flex-shrink: 0;
+    }
+    .toggle-group { display: flex; gap: 6px; }
+    .toggle {
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    .toggle:hover { color: var(--text); border-color: var(--border-strong); }
+    .toggle.active {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    /* ---- Results ---- */
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .results-meta {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .results-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .result {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.15s, background 0.15s;
+      animation: fade-in 0.2s ease-out;
+    }
+    .result:hover { border-color: var(--border-strong); }
+    .result.selected {
+      border-color: var(--accent);
+      background: var(--bg-elev-2);
+    }
+    .result .checkbox {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .result .thumb {
+      width: 96px;
+      height: 54px;
+      flex-shrink: 0;
+      object-fit: cover;
+      background: var(--bg-elev-2);
+      border-radius: 4px;
+    }
+    .result .info {
+      flex: 1;
+      min-width: 0;
+    }
+    .result .title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      text-decoration: none;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.35;
+    }
+    .result .title:hover { color: var(--accent); }
+    .result .sub {
+      margin-top: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-faint);
+      letter-spacing: 0.04em;
+    }
+    .result .duration-row {
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .result .duration {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
+    .play-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-size: 10px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .play-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .play-btn.is-loading,
+    .play-btn.playing {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #1a1200;
+    }
+    .play-btn.is-loading {
+      animation: pulse-glow 1s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.5; }
+    }
+    .play-btn .icon {
+      display: block;
+      transform: translateX(1px);  /* nudge triangle to optical center */
+    }
+    .play-btn.playing .icon { transform: none; }
+
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .actions .left { display: flex; gap: 8px; }
+
+    /* ---- Empty / loading / error states ---- */
+    .empty, .loading, .error {
+      padding: 28px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      text-align: center;
+      color: var(--text-faint);
+      font-size: 14px;
+    }
+    .error {
+      border-color: var(--danger);
+      color: var(--danger);
+      border-style: solid;
+      background: rgba(255, 90, 90, 0.06);
+    }
+    .loading {
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+    }
+    .loading .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin: 0 2px;
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+    .loading .dot:nth-child(2) { animation-delay: 0.2s; }
+    .loading .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    /* ---- Download ---- */
+    .download-panel {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      animation: fade-in 0.25s ease-out;
+    }
+    .download-panel .info {
+      font-size: 14px;
+      color: var(--text);
+      min-width: 0;
+      flex: 1;
+    }
+    .download-panel .info .sub {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-faint);
+      margin-top: 2px;
+      letter-spacing: 0.04em;
+      word-break: break-all;
+    }
+    .download-panel .info .partial {
+      color: var(--danger);
+    }
+
+    /* ---- Progress ---- */
+    .progress-panel {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px 24px;
+    }
+    .progress-state {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .progress-state.done { color: var(--success); }
+    .progress-state.error { color: var(--danger); }
+    .progress-title {
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 16px;
+      min-height: 1.3em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .bar {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-elev-2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.25s ease-out;
+      border-radius: 3px;
+    }
+    .progress-counts {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
+    .progress-errors {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--danger);
+      font-family: var(--mono);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .progress-errors .err-label {
+      color: var(--text-faint);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    /* ---- Animations ---- */
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(2px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40%           { opacity: 1;   transform: scale(1); }
+    }
+
+    /* ---- Hidden helper ---- */
+    .hidden { display: none !important; }
+
+    /* ---- Small screens ---- */
+    @media (max-width: 640px) {
+      .search-row { flex-direction: column; }
+      .settings-row { flex-direction: column; align-items: flex-start; }
+      .settings-row > .label { width: auto; }
+      .result .thumb { width: 72px; height: 40px; }
+      .actions { flex-direction: column; gap: 12px; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div>
+        <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
+        <p class="subtitle">extract audio from YouTube videos and playlists</p>
+      </div>
+      <span class="tag">v2.3</span>
+    </header>
+
+    <!-- Search -->
+    <section class="block">
+      <p class="section-label">// Search</p>
+      <div class="search-row">
+        <input
+          id="search-input"
+          class="search-input"
+          type="text"
+          placeholder="Search YouTube or paste a URL..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="button" id="search-btn" class="btn primary">Search</button>
+      </div>
+      <div id="search-status"></div>
+    </section>
+
+    <!-- Audio settings -->
+    <section class="block">
+      <p class="section-label">// Audio Settings</p>
+      <div class="settings">
+        <div class="settings-row">
+          <span class="label">Format</span>
+          <div class="toggle-group" data-group="format">
+            <button type="button" class="toggle active" data-value="mp3">MP3</button>
+            <button type="button" class="toggle" data-value="flac">FLAC</button>
+            <button type="button" class="toggle" data-value="wav">WAV</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Progress -->
+    <section id="progress-section" class="block hidden">
+      <p class="section-label">// Progress</p>
+      <div id="progress-container"></div>
+    </section>
+
+    <!-- Download -->
+    <section id="download-section" class="block hidden">
+      <p class="section-label">// Download</p>
+      <div id="download-container"></div>
+    </section>
+
+    <!-- Results -->
+    <section class="block">
+      <div class="results-header">
+        <p class="section-label" style="margin: 0;">// Results</p>
+        <span id="results-meta" class="results-meta"></span>
+      </div>
+      <div id="actions" class="actions hidden">
+        <div class="left">
+          <button type="button" id="select-all-btn" class="btn ghost">Select All</button>
+          <button type="button" id="deselect-all-btn" class="btn ghost">Deselect All</button>
+        </div>
+        <button type="button" id="extract-btn" class="btn primary" disabled>Extract Audio (0)</button>
+      </div>
+      <div id="results-container">
+        <div class="empty">No results yet. Search above to begin.</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Shared audio element for in-row previews. Hidden; controlled entirely via JS. -->
+  <audio id="preview-audio" preload="none"></audio>
+
+  <script>
+    // -------------------- State --------------------
+    const state = {
+      results: [],
+      selectedIds: new Set(),
+      format: 'mp3',
+      jobId: null,
+      isSearching: false,
+      // Audio preview
+      previewVid: null,        // id of the currently-playing video, or null
+      previewBtn: null,        // the DOM button currently in playing/loading state
+      previewToken: 0,         // monotonically increasing — used to ignore stale fetches
+    };
+
+    // -------------------- Elements --------------------
+    const els = {
+      searchInput: document.getElementById('search-input'),
+      searchBtn:   document.getElementById('search-btn'),
+      searchStatus: document.getElementById('search-status'),
+      resultsContainer: document.getElementById('results-container'),
+      resultsMeta: document.getElementById('results-meta'),
+      actions: document.getElementById('actions'),
+      selectAllBtn: document.getElementById('select-all-btn'),
+      deselectAllBtn: document.getElementById('deselect-all-btn'),
+      extractBtn: document.getElementById('extract-btn'),
+      progressSection: document.getElementById('progress-section'),
+      progressContainer: document.getElementById('progress-container'),
+      downloadSection: document.getElementById('download-section'),
+      downloadContainer: document.getElementById('download-container'),
+      previewAudio: document.getElementById('preview-audio'),
+    };
+
+    // -------------------- Audio preview --------------------
+    function clearPreviewBtnState(btn) {
+      if (!btn) return;
+      btn.classList.remove('is-loading', 'playing');
+      btn.innerHTML = '<span class="icon">&#9654;</span>';  // ▶
+      btn.title = 'Preview audio';
+    }
+    function markPreviewBtnPlaying(btn) {
+      if (!btn) return;
+      btn.classList.remove('is-loading');
+      btn.classList.add('playing');
+      btn.innerHTML = '<span class="icon">&#10074;&#10074;</span>';  // ‖
+      btn.title = 'Pause preview';
+    }
+    function markPreviewBtnLoading(btn) {
+      if (!btn) return;
+      btn.classList.add('is-loading');
+      btn.classList.remove('playing');
+      btn.innerHTML = '<span class="icon">&#9654;</span>';
+      btn.title = 'Loading...';
+    }
+    function stopPreview() {
+      els.previewAudio.pause();
+      els.previewAudio.removeAttribute('src');
+      els.previewAudio.load();
+      clearPreviewBtnState(state.previewBtn);
+      state.previewBtn = null;
+      state.previewVid = null;
+    }
+
+    async function togglePreview(videoId, btn) {
+      // Click on the currently-playing button → pause/stop
+      if (state.previewVid === videoId && !els.previewAudio.paused) {
+        stopPreview();
+        return;
+      }
+      // Switching from another preview → stop the old one first
+      if (state.previewVid && state.previewVid !== videoId) {
+        stopPreview();
+      }
+
+      const myToken = ++state.previewToken;
+      state.previewBtn = btn;
+      state.previewVid = videoId;
+      markPreviewBtnLoading(btn);
+
+      try {
+        const res = await fetch(`/api/preview/${encodeURIComponent(videoId)}`);
+        const data = await res.json().catch(() => ({}));
+        // If user clicked another preview while we were waiting, drop the result.
+        if (myToken !== state.previewToken) return;
+        if (!res.ok || !data.url) {
+          clearPreviewBtnState(btn);
+          state.previewBtn = null;
+          state.previewVid = null;
+          alert(data.error || 'Could not load audio preview.');
+          return;
+        }
+        els.previewAudio.src = data.url;
+        await els.previewAudio.play();
+        // 'playing' event handler will mark the button; fallback in case event misses:
+        markPreviewBtnPlaying(btn);
+      } catch (err) {
+        if (myToken !== state.previewToken) return;
+        clearPreviewBtnState(btn);
+        state.previewBtn = null;
+        state.previewVid = null;
+        alert(`Could not play preview: ${err.message}`);
+      }
+    }
+
+    let currentEventSource = null;
+
+    // Audio element lifecycle → keep the button state honest.
+    els.previewAudio.addEventListener('playing', () => {
+      if (state.previewBtn) markPreviewBtnPlaying(state.previewBtn);
+    });
+    els.previewAudio.addEventListener('pause', () => {
+      // Don't clobber the button if .pause was triggered as part of stopPreview()
+      // (in which case state.previewBtn is already nulled).
+      if (state.previewBtn) clearPreviewBtnState(state.previewBtn);
+    });
+    els.previewAudio.addEventListener('ended', () => {
+      stopPreview();
+    });
+    els.previewAudio.addEventListener('error', () => {
+      if (state.previewBtn) {
+        clearPreviewBtnState(state.previewBtn);
+        state.previewBtn = null;
+        state.previewVid = null;
+      }
+    });
+
+    // -------------------- Toggles --------------------
+    document.querySelectorAll('.toggle-group').forEach(group => {
+      const groupName = group.dataset.group; // 'format'
+      group.addEventListener('click', (e) => {
+        const btn = e.target.closest('.toggle');
+        if (!btn) return;
+        group.querySelectorAll('.toggle').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state[groupName] = btn.dataset.value;
+      });
+    });
+
+    // -------------------- Search --------------------
+    function setSearchStatus(html) {
+      els.searchStatus.innerHTML = html;
+    }
+    function clearSearchStatus() {
+      els.searchStatus.innerHTML = '';
+    }
+
+    async function doSearch() {
+      const query = els.searchInput.value.trim();
+      if (!query || state.isSearching) return;
+
+      state.isSearching = true;
+      els.searchBtn.disabled = true;
+      els.searchInput.disabled = true;
+      setSearchStatus('<div class="loading" style="margin-top:14px;">Searching<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>');
+
+      // Clear previous results and any stale progress/download UI from a prior job.
+      state.results = [];
+      state.selectedIds.clear();
+      renderResults();
+      resetJobUI();
+
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          setSearchStatus(`<div class="error" style="margin-top:14px;">${escapeHtml(data.error || 'Search failed')}</div>`);
+          return;
+        }
+
+        state.results = data.results || [];
+        state.selectedIds.clear();
+        clearSearchStatus();
+        renderResults(data);
+      } catch (err) {
+        setSearchStatus(`<div class="error" style="margin-top:14px;">Network error: ${escapeHtml(err.message)}</div>`);
+      } finally {
+        state.isSearching = false;
+        els.searchBtn.disabled = false;
+        els.searchInput.disabled = false;
+        els.searchInput.focus();
+      }
+    }
+
+    els.searchBtn.addEventListener('click', doSearch);
+    els.searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doSearch();
+    });
+
+    // -------------------- Results --------------------
+    function renderResults(meta) {
+      const container = els.resultsContainer;
+      container.innerHTML = '';
+
+      if (state.results.length === 0) {
+        container.innerHTML = '<div class="empty">No results yet. Search above to begin.</div>';
+        els.resultsMeta.textContent = '';
+        els.actions.classList.add('hidden');
+        return;
+      }
+
+      // Header info
+      if (meta && meta.type === 'playlist') {
+        els.resultsMeta.textContent = `Playlist: ${meta.title} · ${state.results.length} videos`;
+      } else if (meta) {
+        els.resultsMeta.textContent = `${state.results.length} ${state.results.length === 1 ? 'result' : 'results'}`;
+      }
+
+      const list = document.createElement('div');
+      list.className = 'results-list';
+
+      state.results.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'result';
+        if (state.selectedIds.has(r.id)) row.classList.add('selected');
+        row.dataset.id = r.id;
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'checkbox';
+        cb.checked = state.selectedIds.has(r.id);
+        cb.addEventListener('change', () => toggleSelect(r.id, cb.checked));
+
+        const thumb = document.createElement('img');
+        thumb.className = 'thumb';
+        thumb.loading = 'lazy';
+        thumb.src = r.thumbnail || '';
+        thumb.alt = '';
+        thumb.referrerPolicy = 'no-referrer';
+        thumb.addEventListener('error', () => {
+          thumb.style.visibility = 'hidden';
+        });
+
+        const info = document.createElement('div');
+        info.className = 'info';
+        const title = document.createElement('a');
+        title.className = 'title';
+        title.href = r.url;
+        title.target = '_blank';
+        title.rel = 'noopener';
+        title.textContent = r.title;
+        info.appendChild(title);
+        if (r.uploader) {
+          const sub = document.createElement('div');
+          sub.className = 'sub';
+          sub.textContent = r.uploader;
+          info.appendChild(sub);
+        }
+        // Duration line + play-preview button. Always render the row so the
+        // preview button has a home even when duration is missing.
+        if (r.id) {
+          const dRow = document.createElement('div');
+          dRow.className = 'duration-row';
+          if (r.duration_string) {
+            const duration = document.createElement('span');
+            duration.className = 'duration';
+            duration.textContent = r.duration_string;
+            dRow.appendChild(duration);
+          }
+          const playBtn = document.createElement('button');
+          playBtn.type = 'button';
+          playBtn.className = 'play-btn';
+          playBtn.dataset.vid = r.id;
+          playBtn.title = 'Preview audio';
+          playBtn.setAttribute('aria-label', 'Preview audio');
+          playBtn.innerHTML = '<span class="icon">&#9654;</span>';
+          playBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePreview(r.id, playBtn);
+          });
+          dRow.appendChild(playBtn);
+          info.appendChild(dRow);
+        }
+
+        row.appendChild(cb);
+        row.appendChild(thumb);
+        row.appendChild(info);
+
+        list.appendChild(row);
+      });
+
+      container.appendChild(list);
+      els.actions.classList.remove('hidden');
+      updateExtractButton();
+    }
+
+    function toggleSelect(id, isSelected) {
+      if (isSelected) state.selectedIds.add(id);
+      else state.selectedIds.delete(id);
+      const row = els.resultsContainer.querySelector(`.result[data-id="${cssEscape(id)}"]`);
+      if (row) row.classList.toggle('selected', isSelected);
+      updateExtractButton();
+    }
+
+    function updateExtractButton() {
+      const n = state.selectedIds.size;
+      els.extractBtn.textContent = `Extract Audio (${n})`;
+      els.extractBtn.disabled = n === 0;
+    }
+
+    els.selectAllBtn.addEventListener('click', () => {
+      state.results.forEach(r => state.selectedIds.add(r.id));
+      renderResults();
+    });
+    els.deselectAllBtn.addEventListener('click', () => {
+      state.selectedIds.clear();
+      renderResults();
+    });
+
+    els.extractBtn.addEventListener('click', startExtraction);
+
+    function resetJobUI() {
+      if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
+      }
+      state.jobId = null;
+      els.progressSection.classList.add('hidden');
+      els.progressContainer.innerHTML = '';
+      els.downloadSection.classList.add('hidden');
+      els.downloadContainer.innerHTML = '';
+    }
+
+    // -------------------- Extraction --------------------
+    async function startExtraction() {
+      if (state.selectedIds.size === 0) return;
+
+      // Build the payload from currently selected results.
+      const selected = state.results.filter(r => state.selectedIds.has(r.id));
+      const payload = {
+        videos: selected.map(r => ({ id: r.id, url: r.url, title: r.title })),
+        format: state.format,
+      };
+
+      els.extractBtn.disabled = true;
+      els.extractBtn.textContent = 'Starting...';
+      els.downloadSection.classList.add('hidden');
+      els.downloadContainer.innerHTML = '';
+
+      let job;
+      try {
+        const res = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        job = await res.json();
+        if (!res.ok) throw new Error(job.error || 'Extraction failed to start');
+      } catch (err) {
+        renderProgressError(`Could not start extraction: ${err.message}`);
+        updateExtractButton();
+        return;
+      }
+
+      state.jobId = job.job_id;
+      state.outputDir = job.output_dir || '';
+      renderProgressInitial(selected.length);
+      streamJobStatus(job.job_id);
+    }
+
+    function renderProgressInitial(total) {
+      els.progressSection.classList.remove('hidden');
+      els.progressContainer.innerHTML = `
+        <div class="progress-panel">
+          <div class="progress-state" id="prog-state">Queued</div>
+          <div class="progress-title" id="prog-title">&nbsp;</div>
+          <div class="bar"><div class="bar-fill" id="prog-fill"></div></div>
+          <div class="progress-counts">
+            <span id="prog-counts">Completed 0 of ${total}</span>
+            <span id="prog-pct">0%</span>
+          </div>
+          <div class="progress-errors hidden" id="prog-errors"></div>
+        </div>
+      `;
+    }
+
+    function renderProgressError(message) {
+      els.progressSection.classList.remove('hidden');
+      els.progressContainer.innerHTML = `
+        <div class="progress-panel">
+          <div class="progress-state error">Error</div>
+          <div class="progress-title">${escapeHtml(message)}</div>
+        </div>
+      `;
+    }
+
+    const STATE_LABELS = {
+      queued:      'Queued',
+      downloading: 'Downloading',
+      converting:  'Extracting',
+      done:        'Done',
+      error:       'Error',
+    };
+
+    function updateProgress(payload) {
+      const stateEl   = document.getElementById('prog-state');
+      const titleEl   = document.getElementById('prog-title');
+      const fillEl    = document.getElementById('prog-fill');
+      const countsEl  = document.getElementById('prog-counts');
+      const pctEl     = document.getElementById('prog-pct');
+      const errorsEl  = document.getElementById('prog-errors');
+      if (!stateEl) return;
+
+      const label = STATE_LABELS[payload.status] || payload.status;
+      stateEl.textContent = label;
+      stateEl.classList.toggle('done',  payload.status === 'done');
+      stateEl.classList.toggle('error', payload.status === 'error');
+
+      titleEl.textContent = payload.current_title || ' ';
+
+      const pct = Math.round((payload.current_progress || 0) * 100);
+      fillEl.style.width = pct + '%';
+      pctEl.textContent = pct + '%';
+      countsEl.textContent = `Completed ${payload.completed} of ${payload.total}`;
+
+      if (payload.errors && payload.errors.length > 0) {
+        errorsEl.classList.remove('hidden');
+        errorsEl.innerHTML = '<div class="err-label">// Errors</div>' +
+          payload.errors.map(e => `<div>${escapeHtml(e)}</div>`).join('');
+      } else {
+        errorsEl.classList.add('hidden');
+        errorsEl.innerHTML = '';
+      }
+    }
+
+    function streamJobStatus(jobId) {
+      if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
+      }
+      const es = new EventSource(`/api/status/${encodeURIComponent(jobId)}`);
+      currentEventSource = es;
+
+      es.onmessage = (ev) => {
+        let payload;
+        try { payload = JSON.parse(ev.data); }
+        catch { return; }
+
+        if (payload.error) {
+          renderProgressError(payload.error);
+          es.close();
+          currentEventSource = null;
+          updateExtractButton();
+          return;
+        }
+
+        updateProgress(payload);
+
+        if (payload.status === 'done') {
+          es.close();
+          currentEventSource = null;
+          updateExtractButton();
+          onJobDone(jobId, payload);
+        } else if (payload.status === 'error') {
+          es.close();
+          currentEventSource = null;
+          updateExtractButton();
+        }
+      };
+
+      es.onerror = () => {
+        // Browser auto-reconnects on transient errors. We only treat permanent close as error.
+        if (es.readyState === EventSource.CLOSED) {
+          renderProgressError('Lost connection to status stream.');
+          currentEventSource = null;
+          updateExtractButton();
+        }
+      };
+    }
+
+    function onJobDone(jobId, payload) {
+      const total      = payload.total || 0;
+      const completed  = payload.completed || 0;
+      const errorCount = (payload.errors || []).length;
+      const outputDir  = state.outputDir || '';
+
+      els.downloadSection.classList.remove('hidden');
+
+      if (completed === 0) {
+        els.downloadContainer.innerHTML = `
+          <div class="download-panel">
+            <div class="info">
+              <div>No files were produced.</div>
+              <div class="sub partial">${errorCount} error${errorCount === 1 ? '' : 's'} — see Progress panel.</div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const headline = completed > 1
+        ? `${completed} files saved`
+        : `1 file saved`;
+      const partial = errorCount > 0
+        ? `<div class="sub partial">${errorCount} track${errorCount === 1 ? '' : 's'} failed (${completed}/${total}).</div>`
+        : '';
+
+      els.downloadContainer.innerHTML = `
+        <div class="download-panel">
+          <div class="info">
+            <div>${headline}</div>
+            <div class="sub">${escapeHtml(outputDir)}</div>
+            ${partial}
+          </div>
+          <button type="button" id="open-folder-btn" class="btn primary">Open Folder</button>
+        </div>
+      `;
+      document.getElementById('open-folder-btn').addEventListener('click', async () => {
+        try {
+          const res = await fetch('/api/open-folder', { method: 'POST' });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            alert(data.error || 'Could not open folder.');
+          }
+        } catch (err) {
+          alert(`Could not open folder: ${err.message}`);
+        }
+      });
+    }
+
+    // -------------------- Helpers --------------------
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[ch]));
+    }
+    function cssEscape(s) {
+      if (window.CSS && CSS.escape) return CSS.escape(s);
+      return String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+    }
+
+    // Focus on load.
+    els.searchInput.focus();
+  </script>
+</body>
+</html>
