@@ -16,7 +16,109 @@
 
 Search YouTube, preview audio in-browser before committing, extract one track or a whole playlist to MP3 / FLAC / WAV. Runs entirely on your machine — nothing leaves localhost except requests to YouTube itself. No cloud, no account, no telemetry.
 
-I built this as an upgrade to my earlier static "yt-dlp command generator" — a real GUI on top of yt-dlp that handles the search, the queueing, the conversion, and the file management so you don't have to touch a terminal.
+---
+
+<div align="center">
+
+### Powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+
+This app is a GUI front-end built on top of **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** — the open-source powerhouse that handles all YouTube interaction, format selection, and audio extraction under the hood. yt-dlp is maintained by a dedicated team of contributors and is the backbone that makes this app possible. If you find it useful, consider [starring their repository](https://github.com/yt-dlp/yt-dlp) and reading [their docs](https://github.com/yt-dlp/yt-dlp#readme).
+
+</div>
+
+---
+
+## Quick Setup (Windows)
+
+> **No technical experience needed.** Follow these four steps and you'll be running the app in under 10 minutes.
+
+---
+
+### Step 1 — Install Python
+
+Python is the language this app is built in. You need version **3.10 or newer**.
+
+**[⬇ Download Python from python.org](https://www.python.org/downloads/)**
+
+> ⚠️ **Important:** During installation, check the box that says **"Add Python to PATH"** before clicking Install. If you miss this, the app won't start.
+
+<details>
+<summary>How do I know if Python is already installed?</summary>
+
+Open a Command Prompt (press `Win + R`, type `cmd`, press Enter) and run:
+```
+python --version
+```
+If you see `Python 3.10.x` or higher, you're good. If you see an error, install it using the link above.
+</details>
+
+---
+
+### Step 2 — Install ffmpeg
+
+ffmpeg is what converts the downloaded audio into MP3, FLAC, or WAV. It runs in the background — you never interact with it directly.
+
+**[⬇ Download ffmpeg from ffmpeg.org](https://ffmpeg.org/download.html)**
+
+For Windows, the easiest path:
+1. Download the **"Windows builds from gyan.dev"** release (the `essentials` build is fine)
+2. Extract the zip — you'll get a folder like `ffmpeg-7.x-essentials_build`
+3. Move that folder somewhere permanent (e.g. `C:\ffmpeg`)
+4. Add `C:\ffmpeg\bin` to your system PATH
+
+<details>
+<summary>How do I add a folder to PATH?</summary>
+
+1. Press `Win + S` and search for **"Edit the system environment variables"**
+2. Click **Environment Variables…**
+3. Under **System variables**, find **Path** and click **Edit**
+4. Click **New** and paste the path to ffmpeg's `bin` folder (e.g. `C:\ffmpeg\bin`)
+5. Click OK on all windows, then **restart any open terminals**
+
+To verify it worked, open a new Command Prompt and run `ffmpeg -version`. You should see version info.
+</details>
+
+---
+
+### Step 3 — Install a JavaScript runtime
+
+yt-dlp (the download engine) needs a JavaScript runtime to work with current YouTube. **Deno** is the recommended option — it's a single install and stays out of your way.
+
+**[⬇ Install Deno](https://deno.com/)** — or run this in a Command Prompt:
+```
+winget install DenoLand.Deno
+```
+
+<details>
+<summary>What if I already have Node.js?</summary>
+
+Node.js works too. If `node --version` returns something in a Command Prompt, you're all set — skip this step.
+</details>
+
+---
+
+### Step 4 — Download and launch the app
+
+1. **[⬇ Download this project](../../archive/refs/heads/master.zip)** and unzip it to a folder of your choice (e.g. `C:\Apps\YT-Audio-Extractor`)
+2. Open that folder and **double-click `YT-Audio-Extractor.bat`**
+
+The launcher will:
+- Check that Python, ffmpeg, and the JS runtime are found
+- Automatically install the remaining Python packages on first run (just press Enter when prompted)
+- Open the app at **http://localhost:5000** in your browser
+
+> 💡 For a permanent desktop shortcut with the app's icon, right-click `YT-Audio-Extractor.bat` → **Create shortcut**, then right-click the shortcut → **Properties → Change Icon** and point it at `YT-Audio-Extractor.ico` in the same folder.
+
+---
+
+### Troubleshooting first-launch issues
+
+| What the launcher says | What to do |
+|---|---|
+| `[X] Python is not installed or not on PATH` | Reinstall Python and make sure **"Add to PATH"** is checked |
+| `[X] ffmpeg is not installed or not on PATH` | Check that you added ffmpeg's `bin` folder to PATH and opened a **new** terminal |
+| `[!] No JavaScript runtime found` | Install Deno: `winget install DenoLand.Deno` in a Command Prompt |
+| App opens but downloads fail with errors | Quit Chrome completely (including background processes) and relaunch the app |
 
 ---
 
@@ -71,32 +173,16 @@ The Windows launcher kills any leftover Flask server on port 5000, then verifies
 
 ---
 
-## Install & Run
-
-### Prerequisites (all platforms)
-
-- **Python 3.10+** — [python.org/downloads](https://www.python.org/downloads/) (check "Add Python to PATH" on Windows)
-- **ffmpeg** on PATH — [ffmpeg.org/download](https://ffmpeg.org/download.html), `brew install ffmpeg`, or `apt install ffmpeg`
-- **A JavaScript runtime** on PATH — [Deno](https://deno.com) recommended (`winget install DenoLand.Deno` on Windows, `brew install deno` on macOS). yt-dlp needs one for current YouTube formats.
-
-Python packages bootstrap themselves on first launch.
-
-### Windows (recommended)
-
-1. Clone or download this repo
-2. Double-click `Create-Desktop-Shortcut.bat` **once** — drops a labeled, custom-icon shortcut on your desktop
-3. From then on, launch from the desktop icon
-
-### macOS / Linux
+## macOS / Linux
 
 ```bash
-git clone <this repo>
-cd <repo dir>
+git clone https://github.com/Edulus/YT-Audio-Extractor.git
+cd YT-Audio-Extractor
 pip install -r requirements.txt
 python app.py
 ```
 
-The app opens at `http://localhost:5000` in your default browser.
+The app opens at `http://localhost:5000` in your default browser. Install ffmpeg via `brew install ffmpeg` or `apt install ffmpeg`.
 
 ---
 
@@ -140,11 +226,9 @@ A README that says "open a terminal and run `python app.py`" filters out everyon
 - Launches the app and the browser
 - Pauses on non-zero exit so error messages stay visible
 
-Combined with `Create-Desktop-Shortcut.bat` (which uses `WScript.Shell` COM to drop a custom-icon `.lnk` on the user's desktop), the install reduces to "double-click an icon."
-
 ### Why generate the icon programmatically?
 
-The icon is a 6-resolution `.ico` (16/32/48/64/128/256) rendered fresh at each size to avoid downsampling artifacts at small dimensions. `generate_icon.py` uses Pillow to draw the amber play triangle on the dark rounded-square background that matches the app's color palette. Keeping the generator in the repo means the icon can be regenerated or tweaked without manual image editing.
+The icon is a 6-resolution `.ico` (16/32/48/64/128/256) rendered fresh at each size to avoid downsampling artifacts at small dimensions. `generate_icon.py` uses Pillow to draw the amber play triangle inside an amber ring on a dark circle — matching the app's color palette. Keeping the generator in the repo means the icon can be regenerated or tweaked without manual image editing.
 
 ---
 
@@ -155,28 +239,16 @@ The icon is a 6-resolution `.ico` (16/32/48/64/128/256) rendered fresh at each s
 ├── app.py                       # Flask backend: search, preview, extract, status (SSE), open-folder
 ├── templates/
 │   └── index.html               # Single-page frontend (HTML + inline CSS + inline JS)
+├── static/
+│   ├── favicon.svg              # Browser tab icon
+│   └── favicon.ico              # Browser tab icon fallback (for Chrome)
 ├── requirements.txt             # Python deps (flask, yt-dlp)
 ├── YT-Audio-Extractor.bat       # Windows launcher (cleanup → env checks → run)
-├── Create-Desktop-Shortcut.bat  # One-time installer for the desktop shortcut
-├── YT-Audio-Extractor.ico       # App icon (6 resolutions)
+├── YT-Audio-Extractor.ico       # Desktop shortcut icon (6 resolutions)
 ├── generate_icon.py             # Pillow-based regenerator for the icon
 └── docs/
     └── screenshots/             # README screenshots
 ```
-
----
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| `[X] Python is not installed or not on PATH` | Install Python 3.10+, check "Add Python to PATH", re-run |
-| `[X] ffmpeg is not installed or not on PATH` | Install ffmpeg, add its `bin` to PATH, restart your terminal |
-| `[!] No JavaScript runtime found` | Install Deno (`winget install DenoLand.Deno`) |
-| `Chrome cookies: disabled` at startup | Quit Chrome (kill background processes too) and relaunch |
-| "This video is unavailable / private / age-restricted" | These can't be downloaded anonymously; skip them, or relaunch with cookies enabled |
-| Search returns 429 | YouTube rate-limited your IP; wait a minute, or relaunch with cookies enabled |
-| Port 5000 already in use | The launcher auto-kills the previous instance; if you still see this, end any stray `python.exe` in Task Manager |
 
 ---
 

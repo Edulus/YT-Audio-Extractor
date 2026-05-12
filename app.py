@@ -14,7 +14,7 @@ import time
 import uuid
 import webbrowser
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
 import yt_dlp
 from yt_dlp.utils import DownloadError
@@ -197,6 +197,11 @@ def _run_extract_info(target: str) -> dict:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(app.static_folder, "favicon.ico", mimetype="image/vnd.microsoft.icon")
+
 
 @app.route("/")
 def index():
