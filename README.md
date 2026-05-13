@@ -132,7 +132,7 @@ The launcher will:
 - 🍪 **Chrome cookies passthrough** — when Chrome is closed, the app probes whether it can read your local Chrome cookies and passes them to yt-dlp, so YouTube treats requests as authenticated
 - ⏱ **Anti-bot pacing** — randomized 3-7 s pause between consecutive tracks, plus a 1 s interval between yt-dlp's internal requests during search
 - 🚀 **One-click Windows launcher** — auto-cleans stale processes, verifies environment (Python, ffmpeg, JS runtime), installs Python deps on first run, opens the browser
-- 🪟 **Open Folder that actually focuses** — uses a Win32 Alt-tap trick to bypass Windows' focus-stealing prevention, so the new Explorer window jumps in front of the browser
+- 🪄 **Open Folder that actually focuses** — uses a Win32 Alt-tap trick to bypass Windows' focus-stealing prevention, so the new Explorer window jumps in front of the browser
 
 ---
 

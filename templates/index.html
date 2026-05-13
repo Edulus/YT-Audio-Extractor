@@ -315,6 +315,28 @@
       height: 10px;
     }
 
+    .load-more-btn {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      background: transparent;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .load-more-btn:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .load-more-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
     .actions {
       display: flex;
       justify-content: space-between;
@@ -486,7 +508,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v2.7</span>
+      <span class="tag">v2.8</span>
     </header>
 
     <!-- Search -->
@@ -569,6 +591,11 @@
       format: 'mp3',
       jobId: null,
       isSearching: false,
+      isLoadingMore: false,
+      searchQuery: '',
+      searchOffset: 0,
+      searchHasMore: false,
+      searchMeta: null,
       // Audio preview
       previewVid: null,        // id of the currently-playing video, or null
       previewBtn: null,        // the DOM button currently in playing/loading state
@@ -717,6 +744,10 @@
 
       // Clear previous results and any stale progress/download UI from a prior job.
       state.results = [];
+      state.searchMeta = null;
+      state.searchQuery = query;
+      state.searchOffset = 0;
+      state.searchHasMore = false;
       state.selectedIds.clear();
       renderResults();
       resetJobUI();
@@ -735,9 +766,12 @@
         }
 
         state.results = data.results || [];
+        state.searchMeta = data;
+        state.searchOffset = state.results.length;
+        state.searchHasMore = data.has_more || false;
         state.selectedIds.clear();
         clearSearchStatus();
-        renderResults(data);
+        renderResults();
       } catch (err) {
         setSearchStatus(`<div class="error" style="margin-top:14px;">Network error: ${escapeHtml(err.message)}</div>`);
       } finally {
@@ -754,7 +788,8 @@
     });
 
     // -------------------- Results --------------------
-    function renderResults(meta) {
+    function renderResults() {
+      const meta = state.searchMeta;
       const container = els.resultsContainer;
       container.innerHTML = '';
 
@@ -846,8 +881,50 @@
       });
 
       container.appendChild(list);
+
+      if (state.searchHasMore) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'load-more-btn';
+        btn.textContent = 'Load more results';
+        btn.addEventListener('click', loadMore);
+        container.appendChild(btn);
+      }
+
       els.actions.classList.remove('hidden');
       updateExtractButton();
+    }
+
+    async function loadMore() {
+      if (state.isLoadingMore || state.isSearching) return;
+      state.isLoadingMore = true;
+
+      const btn = els.resultsContainer.querySelector('.load-more-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: state.searchQuery, offset: state.searchOffset }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          if (btn) { btn.disabled = false; btn.textContent = 'Load more results'; }
+          return;
+        }
+
+        const newResults = data.results || [];
+        state.results = [...state.results, ...newResults];
+        state.searchOffset += newResults.length;
+        state.searchHasMore = data.has_more || false;
+        renderResults();
+      } catch (_err) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Load more results'; }
+      } finally {
+        state.isLoadingMore = false;
+      }
     }
 
     function toggleSelect(id, isSelected) {
