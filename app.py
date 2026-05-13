@@ -208,6 +208,8 @@ def index():
     return render_template("index.html")
 
 
+PAGE_SIZE = 10
+
 @app.post("/api/search")
 def api_search():
     payload = request.get_json(silent=True) or {}
@@ -215,11 +217,13 @@ def api_search():
     if not query:
         return jsonify({"error": "Empty query"}), 400
 
+    offset = max(0, int(payload.get("offset") or 0))
+
     try:
         if _is_youtube_url(query):
             info = _run_extract_info(query)
         else:
-            info = _run_extract_info(f"ytsearch10:{query}")
+            info = _run_extract_info(f"ytsearch{offset + PAGE_SIZE}:{query}")
     except DownloadError as exc:
         message = str(exc)
         if "HTTP Error 429" in message or "Too Many Requests" in message:
@@ -240,19 +244,27 @@ def api_search():
             "type": "video",
             "title": normalized["title"],
             "results": [normalized],
+            "has_more": False,
         })
 
     # Playlist or search results — both come back as _type=playlist with entries[].
     entries = [e for e in (info.get("entries") or []) if e]
-    normalized = [_normalize_entry(e) for e in entries]
-    # Only treat as a playlist when the user pasted a URL; ytsearch results also come
-    # back wrapped as type=playlist, but logically they're just a list of videos.
+    # For paginated search, slice to just the new page.
     is_real_playlist = _is_youtube_url(query) and info_type == "playlist"
+    if not is_real_playlist:
+        page = entries[offset:offset + PAGE_SIZE]
+        has_more = len(page) == PAGE_SIZE
+    else:
+        page = entries
+        has_more = False
+
+    normalized = [_normalize_entry(e) for e in page]
 
     return jsonify({
         "type": "playlist" if is_real_playlist else "video",
         "title": info.get("title") or "Search results",
         "results": normalized,
+        "has_more": has_more,
     })
 
 
