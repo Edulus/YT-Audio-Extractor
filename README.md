@@ -15,7 +15,7 @@
 
 Search YouTube, preview audio in-browser before committing, extract one track or a whole playlist to MP3 / FLAC / WAV. Runs entirely on your machine — nothing leaves localhost except requests to YouTube itself. No cloud, no account, no telemetry.
 
-> **🪟 Built for Windows.** The one-click launcher and automatic ffmpeg/Deno setup are Windows-only. macOS and Linux users can still run it manually — see [macOS / Linux](#macos--linux) below — but you'll install ffmpeg yourself and there's no polished launcher.
+> **🖥️ Built for Windows.** The one-click launcher and automatic ffmpeg/Deno setup are Windows-only. macOS and Linux users can still run it manually — see [macOS / Linux](#macos--linux) below — but you'll install ffmpeg yourself and there's no polished launcher.
 
 <div align="center">
 
