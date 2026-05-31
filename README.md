@@ -15,7 +15,7 @@
 
 Search YouTube, preview audio in-browser before committing, extract one track or a whole playlist to MP3 / FLAC / WAV. Runs entirely on your machine — nothing leaves localhost except requests to YouTube itself. No cloud, no account, no telemetry.
 
-> **🖥️ Built for Windows.** The one-click launcher and automatic ffmpeg/Deno setup are Windows-only. macOS and Linux users can still run it manually — see [macOS / Linux](#macos--linux) below — but you'll install ffmpeg yourself and there's no polished launcher.
+> **🖥️ Built for Windows.** The one-click launcher and automatic ffmpeg/Deno setup are Windows-only. macOS and Linux users can still run it manually — see [macOS / Linux](#macos--linux) below — you'll install ffmpeg yourself.
 
 <div align="center">
 
@@ -53,10 +53,13 @@ Python is the language this app is built in. You need version **3.10 or newer**.
 <summary>How do I know if Python is already installed?</summary>
 
 Open a Command Prompt (press `Win + R`, type `cmd`, press Enter) and run:
+
 ```
 python --version
 ```
+
 If you see `Python 3.10.x` or higher, you're good. If you see an error, install it using the link above.
+
 </details>
 
 ---
@@ -67,6 +70,7 @@ If you see `Python 3.10.x` or higher, you're good. If you see an error, install 
 2. Open that folder and **double-click `YT-Audio-Extractor.bat`**
 
 On first launch the launcher automatically:
+
 - Verifies Python ≥ 3.10
 - **Downloads ffmpeg and the Deno JavaScript runtime into a local `bin\` folder** (a one-time ~145 MB download — no install, no PATH changes)
 - Installs the required Python packages
@@ -80,11 +84,11 @@ Later launches skip the downloads and start in a couple of seconds.
 
 ### Troubleshooting first-launch issues
 
-| What the launcher says | What to do |
-|---|---|
-| `[X] Python is not installed or not on PATH` | Reinstall Python and make sure **"Add to PATH"** is checked |
+| What the launcher says                               | What to do                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `[X] Python is not installed or not on PATH`         | Reinstall Python and make sure **"Add to PATH"** is checked                                                              |
 | `[X] Failed to download/verify the bundled binaries` | Check your internet connection and re-run the launcher. It re-downloads any missing binary from scratch on the next run. |
-| App opens but downloads fail with errors | Quit Chrome completely (including background processes) and relaunch the app |
+| App opens but downloads fail with errors             | Quit Chrome completely (including background processes) and relaunch the app                                             |
 
 > **Maintainers:** the bundled binary versions and SHA-256 checksums are pinned in [`fetch-binaries.ps1`](fetch-binaries.ps1) and verified on every download; see [SETUP.md](SETUP.md) for how to bump them.
 
@@ -93,7 +97,7 @@ Later launches skip the downloads and start in a couple of seconds.
 ## Features
 
 - 🔎 **Unified search bar** — paste a URL (single video or playlist) or type a search query
-- ▶ **In-browser audio preview** — small play button on each result streams the audio directly via a yt-dlp-resolved stream URL, so you can decide *before* downloading
+- ▶ **In-browser audio preview** — small play button on each result streams the audio directly via a yt-dlp-resolved stream URL, so you can decide _before_ downloading
 - 📦 **Batch extraction** — select multiple tracks, watch each one's progress in real time via Server-Sent Events
 - 🎵 **MP3, FLAC, WAV** — best-quality VBR for MP3; lossless for FLAC and WAV
 - 💾 **Direct-to-disk output** — files land in `~/Downloads/YT-Audio` and persist; no zip-and-download round trip through the browser
@@ -107,21 +111,25 @@ Later launches skip the downloads and start in a couple of seconds.
 ## Screenshots
 
 ### Search results with audio preview
+
 ![Search results](docs/screenshots/search-results.png)
 
 Each row has a small ▶ button next to the duration. Click it to preview the audio without leaving the page — the button pulses while the stream URL resolves (~1-2 s on first click, cached after that), then fills amber while playing.
 
 ### Real-time extraction progress
+
 ![Progress panel](docs/screenshots/progress.png)
 
 Server-Sent Events push state changes from the Python worker thread to the browser: per-track download progress, conversion status, completion count, and any errors. No polling.
 
 ### Done — open the folder
+
 ![Download panel](docs/screenshots/download.png)
 
 Files persist in `~/Downloads/YT-Audio`. The Open Folder button uses an OS-level shim that raises File Explorer above the browser window.
 
 ### Launcher: environment checks + auto-cleanup
+
 ![Launcher console](docs/screenshots/launcher.png)
 
 The Windows launcher kills any leftover Flask server on port 5000, checks Python, then downloads any missing binaries (ffmpeg + Deno) before starting. Problems get actionable error messages, not Python tracebacks.
@@ -130,14 +138,14 @@ The Windows launcher kills any leftover Flask server on port 5000, checks Python
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| Backend | Python 3.10+, Flask |
-| Engine | yt-dlp (Python API), ffmpeg, Deno (JS runtime for YouTube) |
-| Frontend | Vanilla HTML + CSS + JS (no framework, no build step, single file) |
-| Realtime | Server-Sent Events for job progress |
+| Layer    | Technology                                                                                                                              |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend  | Python 3.10+, Flask                                                                                                                     |
+| Engine   | yt-dlp (Python API), ffmpeg, Deno (JS runtime for YouTube)                                                                              |
+| Frontend | Vanilla HTML + CSS + JS (no framework, no build step, single file)                                                                      |
+| Realtime | Server-Sent Events for job progress                                                                                                     |
 | Launcher | Windows `.bat` + `fetch-binaries.ps1` — env probes, auto-cleanup, and first-run download of checksum-verified ffmpeg + Deno into `bin/` |
-| Icon | Generated programmatically from a Pillow script (kept in repo) |
+| Icon     | Generated programmatically from a Pillow script (kept in repo)                                                                          |
 
 ---
 
@@ -177,7 +185,7 @@ The progress stream is one-way (server → browser) and the natural unit is a sm
 
 ### Why direct-to-disk instead of zip-and-download?
 
-The earlier design wrote files to a per-job temp dir, then served them as a zip through the browser when the user clicked Download. That's the standard web-app pattern, but it's a redundant round-trip for a *local* app — the files were already on the user's disk; making them stream through Flask just to land in `~/Downloads` is silly. The current version writes straight to `~/Downloads/YT-Audio` and offers an **Open Folder** button that opens File Explorer at that path. No zip, no Content-Disposition dance, no temp cleanup.
+The earlier design wrote files to a per-job temp dir, then served them as a zip through the browser when the user clicked Download. That's the standard web-app pattern, but it's a redundant round-trip for a _local_ app — the files were already on the user's disk; making them stream through Flask just to land in `~/Downloads` is silly. The current version writes straight to `~/Downloads/YT-Audio` and offers an **Open Folder** button that opens File Explorer at that path. No zip, no Content-Disposition dance, no temp cleanup.
 
 ### Why Chrome cookies passthrough, and how does it fall back?
 
@@ -190,6 +198,7 @@ yt-dlp accepts a `cookiesfrombrowser=('chrome',)` option that reads your Chrome 
 ### Why a custom launcher instead of a README "Quick Start"?
 
 A README that says "open a terminal and run `python app.py`" filters out everyone who doesn't already use a terminal. `YT-Audio-Extractor.bat` is a short script that:
+
 - Kills any stale Flask listener on port 5000 (auto-recovery from previous runs)
 - Probes for Python ≥ 3.10 and pip, with an actionable install hint if either is missing (Python is the only manual prerequisite)
 - Runs `fetch-binaries.ps1` to download and checksum-verify ffmpeg + Deno into `bin/` on first run — no PATH setup

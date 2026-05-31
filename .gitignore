@@ -10,3 +10,11 @@ ytaudio_*/
 *.log
 .vscode/
 .idea/
+
+# Auto-downloaded binaries (ffmpeg, deno) — fetched into bin/ on first launch
+/bin/
+
+# Local-only / dev artifacts (not part of the published app)
+.claude/
+CLAUDE_BRIEFING.md
+icon_preview.html

@@ -41,10 +41,13 @@ if "!KILLED!" NEQ "0" (
 
 set "ERRORS=0"
 
-REM ---------- Python ----------
+REM ---------- Python (the ONLY thing you must install yourself) ----------
 where python >nul 2>&1
 if errorlevel 1 (
     echo [X] Python is not installed or not on PATH.
+    echo.
+    echo     Python is the ONLY prerequisite you have to install manually -
+    echo     ffmpeg and the JS runtime are downloaded automatically below.
     echo.
     echo     Install Python 3.10 or newer:
     echo       https://www.python.org/downloads/
@@ -71,32 +74,32 @@ if errorlevel 1 (
 )
 echo [OK] pip available
 
-REM ---------- ffmpeg ----------
-where ffmpeg >nul 2>&1
+REM ---------- Bundled binaries (ffmpeg + Deno) ----------
+REM No manual ffmpeg/Deno install and no PATH editing required: the helper
+REM script downloads pinned, checksum-verified binaries into bin\ on first run.
+REM Versions, URLs, and SHA-256 hashes live at the top of fetch-binaries.ps1.
+if exist "%~dp0bin\ffmpeg.exe" if exist "%~dp0bin\deno.exe" goto :bins_ready
+
+echo [..] Setting up bundled binaries ^(first run only^)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0fetch-binaries.ps1"
 if errorlevel 1 (
-    echo [X] ffmpeg is not installed or not on PATH.
-    echo     Audio conversion won't work without it.
-    echo     Download:  https://ffmpeg.org/download.html
-    echo     After install, add ffmpeg's bin folder to PATH and
-    echo     restart this terminal.
-    set /a ERRORS+=1
-) else (
-    echo [OK] ffmpeg
+    echo.
+    echo [X] Failed to download/verify the bundled binaries.
+    echo     Check your internet connection and re-run YT-Audio-Extractor.bat.
+    goto :fatal
 )
 
-REM ---------- JavaScript runtime (warning only) ----------
-set "JS_OK=0"
-where deno >nul 2>&1 && set "JS_OK=1"
-if "!JS_OK!"=="0" ( where node >nul 2>&1 && set "JS_OK=1" )
-if "!JS_OK!"=="0" ( where bun  >nul 2>&1 && set "JS_OK=1" )
-if "!JS_OK!"=="0" (
-    echo [!] No JavaScript runtime found ^(Deno / Node / Bun^).
-    echo     YouTube extraction may fail without one.
-    echo     Install Deno:  winget install DenoLand.Deno
-    echo     Continuing anyway...
-) else (
-    echo [OK] JavaScript runtime available
+:bins_ready
+if not exist "%~dp0bin\ffmpeg.exe" (
+    echo [X] bin\ffmpeg.exe is missing after setup.
+    goto :fatal
 )
+if not exist "%~dp0bin\deno.exe" (
+    echo [X] bin\deno.exe is missing after setup.
+    goto :fatal
+)
+echo [OK] ffmpeg ^(bundled^)
+echo [OK] Deno JS runtime ^(bundled^)
 
 if "!ERRORS!" NEQ "0" goto :fatal
 
