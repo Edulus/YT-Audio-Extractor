@@ -8,11 +8,14 @@
 ![Flask](https://img.shields.io/badge/Flask-backend-000000?logo=flask&logoColor=white)
 ![yt-dlp](https://img.shields.io/badge/yt--dlp-engine-FF0000?logo=youtube&logoColor=white)
 ![ffmpeg](https://img.shields.io/badge/ffmpeg-converter-007808?logo=ffmpeg&logoColor=white)
+![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow)
 
 </div>
 
 Search YouTube, preview audio in-browser before committing, extract one track or a whole playlist to MP3 / FLAC / WAV. Runs entirely on your machine — nothing leaves localhost except requests to YouTube itself. No cloud, no account, no telemetry.
+
+> **🪟 Built for Windows.** The one-click launcher and automatic ffmpeg/Deno setup are Windows-only. macOS and Linux users can still run it manually — see [macOS / Linux](#macos--linux) below — but you'll install ffmpeg yourself and there's no polished launcher.
 
 <div align="center">
 
