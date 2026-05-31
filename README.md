@@ -96,11 +96,11 @@ Later launches skip the downloads and start in a couple of seconds.
 - ▶ **In-browser audio preview** — small play button on each result streams the audio directly via a yt-dlp-resolved stream URL, so you can decide *before* downloading
 - 📦 **Batch extraction** — select multiple tracks, watch each one's progress in real time via Server-Sent Events
 - 🎵 **MP3, FLAC, WAV** — best-quality VBR for MP3; lossless for FLAC and WAV
-- 📁 **Direct-to-disk output** — files land in `~/Downloads/YT-Audio` and persist; no zip-and-download round trip through the browser
+- 💾 **Direct-to-disk output** — files land in `~/Downloads/YT-Audio` and persist; no zip-and-download round trip through the browser
 - 🍪 **Chrome cookies passthrough** — when Chrome is closed, the app probes whether it can read your local Chrome cookies and passes them to yt-dlp, so YouTube treats requests as authenticated
 - ⏱ **Anti-bot pacing** — randomized 3-7 s pause between consecutive tracks, plus a 1 s interval between yt-dlp's internal requests during search
 - 🚀 **Near-one-click Windows launcher** — auto-cleans stale processes, downloads pinned ffmpeg + Deno into a local `bin/` (no PATH setup), installs Python deps on first run, opens the browser. Python is the only thing the user installs.
-- 🪄 **Open Folder that actually focuses** — uses a Win32 Alt-tap trick to bypass Windows' focus-stealing prevention, so the new Explorer window jumps in front of the browser
+- 📁 **Open Folder that actually focuses** — uses a Win32 Alt-tap trick to bypass Windows' focus-stealing prevention, so the new Explorer window jumps in front of the browser
 
 ---
 
