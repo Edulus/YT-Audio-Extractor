@@ -42,11 +42,49 @@ INTER_TRACK_SLEEP_RANGE = (3, 7)
 
 
 # ---------------------------------------------------------------------------
+# Bundled binaries
+# ---------------------------------------------------------------------------
+# To spare users from installing ffmpeg + a JS runtime and editing PATH, the
+# Windows launcher downloads ffmpeg.exe and deno.exe into bin/ next to this
+# file (see fetch-binaries.ps1). We reference them here by explicit path.
+#
+# On macOS/Linux bin/ is normally absent and we transparently fall back to
+# whatever is on PATH (e.g. `brew install ffmpeg` / `apt install ffmpeg`),
+# so the Unix flow is unchanged.
+
+BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin")
+_EXE_SUFFIX = ".exe" if platform.system() == "Windows" else ""
+
+
+def _bundled(name: str) -> str | None:
+    """Return the absolute path to a binary bundled in bin/, or None if absent."""
+    path = os.path.join(BIN_DIR, name)
+    return path if os.path.isfile(path) else None
+
+
+# Prepend bin/ to PATH so child processes prefer our bundled binaries. yt-dlp
+# locates its Deno JS runtime by searching PATH, so this is how the bundled
+# deno.exe gets picked up — there is no separate "deno path" option to set.
+if os.path.isdir(BIN_DIR):
+    os.environ["PATH"] = BIN_DIR + os.pathsep + os.environ.get("PATH", "")
+
+# ffmpeg, by contrast, has an explicit yt-dlp option. None -> yt-dlp uses PATH.
+FFMPEG_LOCATION = _bundled(f"ffmpeg{_EXE_SUFFIX}")
+
+
+def _with_ffmpeg(opts: dict) -> dict:
+    """Point yt-dlp at the bundled ffmpeg, if we have one."""
+    if FFMPEG_LOCATION:
+        opts["ffmpeg_location"] = FFMPEG_LOCATION
+    return opts
+
+
+# ---------------------------------------------------------------------------
 # Environment checks
 # ---------------------------------------------------------------------------
 
 def _ffmpeg_available() -> bool:
-    return shutil.which("ffmpeg") is not None
+    return FFMPEG_LOCATION is not None or shutil.which("ffmpeg") is not None
 
 
 class _SilentLogger:
@@ -405,7 +443,7 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
             if path not in job["files"]:
                 job["files"].append(path)
 
-    ydl_opts = _maybe_with_cookies({
+    ydl_opts = _with_ffmpeg(_maybe_with_cookies({
         "format": "bestaudio/best",
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
@@ -421,7 +459,7 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
         "postprocessor_hooks": [postprocessor_hook],
         "writethumbnail": False,
         "noplaylist": True,  # one URL per call; never expand to a playlist
-    })
+    }))
 
     for i, video in enumerate(videos):
         # Between consecutive tracks, pause for a randomized 3-7 seconds. Skipped
@@ -675,12 +713,26 @@ def _open_browser() -> None:
 
 def main() -> None:
     if not _ffmpeg_available():
-        sys.stderr.write(
-            "ERROR: ffmpeg was not found on PATH. Audio conversion requires ffmpeg.\n"
-            "  Install: https://ffmpeg.org/download.html\n"
-            "  Then restart this app.\n"
-        )
+        if platform.system() == "Windows":
+            sys.stderr.write(
+                "ERROR: ffmpeg was not found. Audio conversion requires ffmpeg.\n"
+                "  Run YT-Audio-Extractor.bat instead of launching app.py directly —\n"
+                "  it auto-downloads ffmpeg.exe into bin/ on first launch.\n"
+            )
+        else:
+            sys.stderr.write(
+                "ERROR: ffmpeg was not found on PATH. Audio conversion requires ffmpeg.\n"
+                "  Install: brew install ffmpeg  (macOS)  /  apt install ffmpeg  (Linux)\n"
+                "  Then restart this app.\n"
+            )
         sys.exit(1)
+
+    sys.stderr.write(
+        f"ffmpeg: {'bundled (bin/)' if FFMPEG_LOCATION else 'system PATH'}\n"
+    )
+    sys.stderr.write(
+        f"JS runtime: {'bundled deno (bin/)' if _bundled('deno' + _EXE_SUFFIX) else 'system PATH'}\n"
+    )
 
     if CHROME_COOKIES_AVAILABLE:
         sys.stderr.write("Chrome cookies: enabled\n")
