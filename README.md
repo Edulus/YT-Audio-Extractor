@@ -88,7 +88,7 @@ Later launches skip the downloads and start in a couple of seconds.
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `[X] Python is not installed or not on PATH`         | Reinstall Python and make sure **"Add to PATH"** is checked                                                              |
 | `[X] Failed to download/verify the bundled binaries` | Check your internet connection and re-run the launcher. It re-downloads any missing binary from scratch on the next run. |
-| App opens but downloads fail with errors             | Quit Chrome completely (including background processes) and relaunch the app                                             |
+| App opens but downloads fail with errors             | Cookie access can fail while your browser is running and holds a lock on its cookie database. Fully quit your browser (including background processes) and relaunch the app |
 
 > **Maintainers:** the bundled binary versions and SHA-256 checksums are pinned in [`fetch-binaries.ps1`](fetch-binaries.ps1) and verified on every download; see [SETUP.md](SETUP.md) for how to bump them.
 
@@ -101,7 +101,7 @@ Later launches skip the downloads and start in a couple of seconds.
 - 📦 **Batch extraction** — select multiple tracks, watch each one's progress in real time via Server-Sent Events
 - 🎵 **MP3, FLAC, WAV** — best-quality VBR for MP3; lossless for FLAC and WAV
 - 💾 **Direct-to-disk output** — files land in `~/Downloads/YT-Audio` and persist; no zip-and-download round trip through the browser
-- 🍪 **Chrome cookies passthrough** — when Chrome is closed, the app probes whether it can read your local Chrome cookies and passes them to yt-dlp, so YouTube treats requests as authenticated
+- 🍪 **Browser cookies passthrough** — no specific browser required: the app auto-detects whichever supported browser it can read cookies from (Chrome, Firefox, Edge, Brave, Opera, Chromium, or Vivaldi) and passes them to yt-dlp, so YouTube treats requests as authenticated. If your browser is running, cookie access may fail because the cookie database is locked — close it (or use a browser you don't keep open) and the app falls back to running without cookies if none are readable
 - ⏱ **Anti-bot pacing** — randomized 3-7 s pause between consecutive tracks, plus a 1 s interval between yt-dlp's internal requests during search
 - 🚀 **Near-one-click Windows launcher** — auto-cleans stale processes, downloads pinned ffmpeg + Deno into a local `bin/` (no PATH setup), installs Python deps on first run, opens the browser. Python is the only thing the user installs.
 - 📁 **Open Folder that actually focuses** — uses a Win32 Alt-tap trick to bypass Windows' focus-stealing prevention, so the new Explorer window jumps in front of the browser
@@ -187,9 +187,9 @@ The progress stream is one-way (server → browser) and the natural unit is a sm
 
 The earlier design wrote files to a per-job temp dir, then served them as a zip through the browser when the user clicked Download. That's the standard web-app pattern, but it's a redundant round-trip for a _local_ app — the files were already on the user's disk; making them stream through Flask just to land in `~/Downloads` is silly. The current version writes straight to `~/Downloads/YT-Audio` and offers an **Open Folder** button that opens File Explorer at that path. No zip, no Content-Disposition dance, no temp cleanup.
 
-### Why Chrome cookies passthrough, and how does it fall back?
+### Why browser cookies passthrough, and how does it fall back?
 
-yt-dlp accepts a `cookiesfrombrowser=('chrome',)` option that reads your Chrome cookie DB and includes the session cookies on requests. This makes YouTube treat the app as a logged-in user, which dramatically reduces rate-limiting and bot-flagging. The catch: when Chrome is running on Windows, it locks the cookie database and the read fails with a `DownloadError`. Naive code would crash every request. The app probes once at startup by calling `yt_dlp.cookies.extract_cookies_from_browser('chrome', ...)` with a silent logger; on failure, a module-level `CHROME_COOKIES_AVAILABLE = False` flag flips and all downstream `_maybe_with_cookies()` calls quietly skip the option. The startup log says `Chrome cookies: enabled` or `Chrome cookies: disabled`. No request ever sees the cookie error.
+yt-dlp accepts a `cookiesfrombrowser=(browser,)` option that reads your browser's cookie DB and includes the session cookies on requests. This makes YouTube treat the app as a logged-in user, which dramatically reduces rate-limiting and bot-flagging. No specific browser is required: at startup the app's `detect_browser()` probes a list of supported browsers in popularity order — Chrome, Firefox, Edge, Brave, Opera, Chromium, Vivaldi — by calling `yt_dlp.cookies.extract_cookies_from_browser(browser, ...)` with a silent logger, and stores the first one that succeeds in a module-level `DETECTED_BROWSER`. The catch: when a browser is running (notably on Windows) it locks the cookie database and the read fails, so that browser is skipped. All downstream `_maybe_with_cookies()` calls add the option only when `DETECTED_BROWSER is not None`; otherwise they quietly run without cookies. The startup log says `Cookie source: <browser>` or `No browser cookies available — running without authentication`. No request ever sees the cookie error.
 
 ### Why an Alt-tap before opening Explorer?
 

@@ -94,30 +94,36 @@ class _SilentLogger:
     def error(self, *a, **k): pass
 
 
-def _probe_chrome_cookies() -> bool:
-    """Detect whether yt-dlp can read Chrome cookies on this machine.
+# Probed in order of popularity; first one yt-dlp can read wins.
+SUPPORTED_BROWSERS = ("chrome", "firefox", "edge", "brave", "opera", "chromium", "vivaldi")
 
-    Reasons this can fail: Chrome not installed, Chrome currently running and
-    locking the cookie DB (Windows), DPAPI key issues, etc. We probe once at
-    startup by calling yt-dlp's cookie extractor directly; on failure we fall
-    back to no cookies for the lifetime of the process.
+
+def detect_browser() -> str | None:
+    """Return the first browser whose cookies yt-dlp can read, or None.
+
+    Reasons a browser can fail: not installed, currently running and locking the
+    cookie DB (Windows), DPAPI key issues, etc. We probe once at startup by
+    calling yt-dlp's cookie extractor directly; the first success is used for the
+    lifetime of the process. If none succeed we run without cookies.
     """
-    try:
-        from yt_dlp.cookies import extract_cookies_from_browser
-        extract_cookies_from_browser("chrome", logger=_SilentLogger())
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+    from yt_dlp.cookies import extract_cookies_from_browser
+    for browser in SUPPORTED_BROWSERS:
+        try:
+            extract_cookies_from_browser(browser, logger=_SilentLogger())
+            return browser
+        except Exception:  # noqa: BLE001
+            continue
+    return None
 
 
-# Set once at startup. If False, neither search nor extract will pass cookies.
-CHROME_COOKIES_AVAILABLE = _probe_chrome_cookies()
+# Set once at startup. If None, neither search nor extract will pass cookies.
+DETECTED_BROWSER = detect_browser()
 
 
 def _maybe_with_cookies(opts: dict) -> dict:
-    """Add cookiesfrombrowser to an opts dict iff Chrome cookies are usable."""
-    if CHROME_COOKIES_AVAILABLE:
-        opts["cookiesfrombrowser"] = ("chrome",)
+    """Add cookiesfrombrowser to an opts dict iff a browser's cookies are usable."""
+    if DETECTED_BROWSER is not None:
+        opts["cookiesfrombrowser"] = (DETECTED_BROWSER,)
     return opts
 
 
@@ -734,12 +740,13 @@ def main() -> None:
         f"JS runtime: {'bundled deno (bin/)' if _bundled('deno' + _EXE_SUFFIX) else 'system PATH'}\n"
     )
 
-    if CHROME_COOKIES_AVAILABLE:
-        sys.stderr.write("Chrome cookies: enabled\n")
+    if DETECTED_BROWSER is not None:
+        sys.stderr.write(f"Cookie source: {DETECTED_BROWSER}\n")
     else:
         sys.stderr.write(
-            "Chrome cookies: disabled (could not read Chrome's cookie database — "
-            "make sure Chrome is installed and not currently running, then restart)\n"
+            "No browser cookies available — running without authentication "
+            f"(tried: {', '.join(SUPPORTED_BROWSERS)}). If a supported browser is "
+            "installed, close it so its cookie database isn't locked, then restart.\n"
         )
 
     threading.Thread(target=_cleanup_loop, daemon=True, name="ytaudio-cleanup").start()

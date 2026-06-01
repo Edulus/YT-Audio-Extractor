@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0] - 2026-06-01
+
+### Changed
+- Cookie passthrough is now browser-agnostic: a new `detect_browser()`
+  probes Chrome, Firefox, Edge, Brave, Opera, Chromium, and Vivaldi (in
+  that order) at startup and uses the first whose cookies yt-dlp can read,
+  stored in a module-level `DETECTED_BROWSER`. Replaces the Chrome-only
+  `CHROME_COOKIES_AVAILABLE` flag.
+- Startup log now reports `Cookie source: <browser>` or
+  `No browser cookies available — running without authentication`
+- README: removed Chrome-required language; documents auto-detection
+  across all supported browsers and the running-browser cookie-lock caveat
+- Version bumped to v3.0 in index.html
+
 ## [2.9.0] - 2026-05-31
 
 ### Added
