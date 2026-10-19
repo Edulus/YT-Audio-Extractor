@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0] - 2026-10-19
+### Added
+- Tags and cover art: every extracted file gets its title, artist (the
+  uploader when YouTube has no artist), date, and source URL written into
+  it, plus the video thumbnail embedded as artwork. Works for BEST, OPUS,
+  MP3, and FLAC. WAV gets tags but no artwork, since WAV can't hold it.
+  Uses the standard tag formats that music players and DJ software such
+  as Mixxx read.
+- Skip tracks you already have: a track that already exists in the output
+  folder shows as "Already have" in the Progress queue instead of "Failed",
+  and no time is spent downloading it again
+- Download history (`download-history.txt` in the output folder, a yt-dlp
+  download archive): a video that was downloaded once is never fetched
+  again, even if its file was renamed or moved. Tracks found in the folder
+  from before v3.6 are added to the history the first time they're skipped.
+### Changed
+- The 3-7 s pause between tracks is skipped for tracks that were already
+  downloaded, since they make no request to YouTube
+- The finished-batch summary counts skipped tracks separately and no longer
+  reports "No files were produced" when everything was already there
+- Version bumped to v3.6 in index.html and installer.iss
+
 ## [3.5.0] - 2026-10-19
 ### Added
 - Audio format options BEST and OPUS. BEST is the new default: it keeps

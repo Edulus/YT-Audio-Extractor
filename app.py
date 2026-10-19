@@ -22,10 +22,15 @@ from yt_dlp.utils import DownloadError
 
 app = Flask(__name__)
 
-# All extracted audio files land here. Flat folder — yt-dlp will skip existing
-# filenames rather than overwrite (yt-dlp's default postprocessor behavior).
+# All extracted audio files land here. Flat folder; tracks that already exist
+# here (or are in the download history) are skipped, never overwritten.
 OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "YT-Audio")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# yt-dlp download archive: one "youtube <video id>" line per finished track.
+# A video listed here is never fetched again, even if its file was renamed or
+# moved. Delete its line (or the whole file) to allow a re-download.
+ARCHIVE_FILE = os.path.join(OUTPUT_DIR, "download-history.txt")
 
 # In-memory job registry. Each job tracks its own state; a lock guards updates.
 JOBS: dict = {}
@@ -35,6 +40,10 @@ ALLOWED_FORMATS = {"best", "opus", "mp3", "flac", "wav"}
 
 # Extensions the "best" option can produce (yt-dlp keeps the source codec).
 BEST_AUDIO_EXTS = {"opus", "m4a", "webm", "ogg", "aac", "mp3", "flac", "wav"}
+
+# Formats that cannot carry embedded cover art (yt-dlp's EmbedThumbnail
+# supports mp3, m4a, ogg/opus and flac). Tags are still written to these.
+NO_ARTWORK_FORMATS = {"wav"}
 
 JOB_TTL_SECONDS = 3600        # 1 hour — finished job entries dropped from registry
 CLEANUP_INTERVAL_SECONDS = 1800  # 30 minutes
@@ -483,6 +492,7 @@ def _job_snapshot(job: dict) -> dict:
         "status": job["status"],
         "total": job["total"],
         "completed": job["completed"],
+        "skipped": job.get("skipped", 0),
         "current_progress": job.get("current_progress", 0.0),
         "current_title": job.get("current_title", ""),
         "errors": list(job.get("errors", [])),
@@ -498,15 +508,50 @@ def _update_job(job_id: str, **fields) -> None:
 
 
 def _set_item(job_id: str, index: int, status: str) -> None:
-    """Set one queue entry's status: queued / active / done / failed."""
+    """Set one queue entry's status: queued / active / done / have / failed."""
     with JOBS_LOCK:
         job = JOBS.get(job_id)
         if job is not None and 0 <= index < len(job.get("items", [])):
             job["items"][index]["status"] = status
+
+
+def _archive_entry(ydl, url: str, video_id: str | None) -> dict | None:
+    """Return the minimal info dict yt-dlp uses for archive lookups, or None."""
+    if video_id:
+        return {"id": video_id, "ie_key": "Youtube"}
+    # No id from the search results: derive it from the URL the way yt-dlp does.
+    for key, ie in ydl._ies.items():
+        if ie.suitable(url):
+            temp_id = ie.get_temp_id(url)
+            return {"id": temp_id, "ie_key": key} if temp_id else None
+    return None
+
+
+def _already_have(ydl, url: str, video: dict, audio_format: str) -> bool:
+    """True if this video is in the download history or already in OUTPUT_DIR.
+
+    A file found on disk but missing from the history (e.g. downloaded before
+    v3.6) is added to the history, so renaming it later won't cause a re-fetch.
+    """
+    entry = _archive_entry(ydl, url, video.get("id"))
+    if entry and ydl.in_download_archive(entry):
+        return True
+
+    title = video.get("title")
+    if not title:
+        return False
+    exts = BEST_AUDIO_EXTS if audio_format == "best" else {audio_format}
+    for ext in exts:
+        if os.path.isfile(ydl.prepare_filename({"title": title, "ext": ext})):
+            if entry:
+                ydl.record_download_archive(entry)
+            return True
+    return False
+
+
 def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
     """Worker thread: download and convert each requested video."""
-    # All jobs share OUTPUT_DIR (flat). yt-dlp's default postprocessor behavior
-    # is to skip files that already exist, so duplicate titles won't clobber.
+    # All jobs share OUTPUT_DIR (flat). Tracks already there are skipped.
 
     def progress_hook(d):
         with JOBS_LOCK:
@@ -531,6 +576,10 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
         # is done in the main loop, not here.
         if d.get("status") != "finished":
             return
+        # The thumbnail converter runs before download, when _filename still
+        # points at the source stream; it says nothing about the audio file.
+        if d.get("postprocessor") == "ThumbnailsConvertor":
+            return
         info = d.get("info_dict") or {}
         path = info.get("filepath") or info.get("_filename")
         if not path:
@@ -548,35 +597,64 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
             if path not in job["files"]:
                 job["files"].append(path)
 
+    embed_artwork = audio_format not in NO_ARTWORK_FORMATS
+
+    # Order matters: extract the audio, write tags into it, then embed the
+    # thumbnail (which also deletes the loose image file afterwards).
+    postprocessors = [{
+        "key": "FFmpegExtractAudio",
+        "preferredcodec": audio_format,
+        # Hardcoded to '0' (best quality). MP3 = ~V0 VBR; ignored for FLAC/WAV.
+        "preferredquality": "0",
+    }, {
+        # Title, artist (falls back to the uploader), date, description, URL.
+        "key": "FFmpegMetadata",
+        "add_metadata": True,
+        "add_chapters": False,
+    }]
+    if embed_artwork:
+        # YouTube serves WebP thumbnails; JPEG is what every tag format and
+        # DJ software (Mixxx included) reads reliably.
+        postprocessors.insert(0, {
+            "key": "FFmpegThumbnailsConvertor",
+            "format": "jpg",
+            "when": "before_dl",
+        })
+        postprocessors.append({"key": "EmbedThumbnail", "already_have_thumbnail": False})
+
     def build_opts() -> dict:
         # Rebuilt per download so a mid-job switch to "no cookies" takes effect.
         return _with_ffmpeg(_maybe_with_cookies({
             "format": "bestaudio/best",
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": audio_format,
-                # Hardcoded to '0' (best quality). MP3 = ~V0 VBR; ignored for FLAC/WAV.
-                "preferredquality": "0",
-            }],
+            "postprocessors": postprocessors,
             "outtmpl": os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s"),
+            "download_archive": ARCHIVE_FILE,
             "quiet": True,
             "no_warnings": True,
             "noprogress": True,  # suppress yt-dlp's stdout progress bar; we use progress_hook
             "progress_hooks": [progress_hook],
             "postprocessor_hooks": [postprocessor_hook],
-            "writethumbnail": False,
+            "writethumbnail": embed_artwork,
             "noplaylist": True,  # one URL per call; never expand to a playlist
         }))
 
-    def download(url: str) -> None:
+    hit_youtube = False
+
+    def download(url: str, video: dict) -> bool:
+        """Download one track. Returns False if it was skipped as already had."""
+        nonlocal hit_youtube
         with yt_dlp.YoutubeDL(build_opts()) as ydl:
+            if _already_have(ydl, url, video, audio_format):
+                return False
+            # Between consecutive downloads, pause for a randomized 3-7 seconds.
+            # Never before the first one, and never for tracks we skip.
+            if hit_youtube:
+                time.sleep(random.uniform(*INTER_TRACK_SLEEP_RANGE))
+            hit_youtube = True
             ydl.download([url])
+            return True
 
     for i, video in enumerate(videos):
-        # Between consecutive tracks, pause for a randomized 3-7 seconds. Skipped
-        # before the first track and never runs for single-video jobs.
-        if i > 0:
-            time.sleep(random.uniform(*INTER_TRACK_SLEEP_RANGE))
 
         url = video.get("url") or (
             f"https://www.youtube.com/watch?v={video['id']}" if video.get("id") else None
@@ -596,14 +674,21 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
 
         try:
             try:
-                download(url)
+                fetched = download(url, video)
             except DownloadError as exc:
                 # YouTube sometimes rejects signed-in requests outright. Retry
                 # once without cookies (and stay cookie-free for the session).
                 if _is_reload_error(str(exc)) and _disable_cookies("download"):
-                    download(url)
+                    fetched = download(url, video)
                 else:
                     raise
+            if not fetched:
+                with JOBS_LOCK:
+                    job = JOBS.get(job_id)
+                    if job is not None:
+                        job["skipped"] += 1
+                        job["items"][i]["status"] = "have"
+                continue
         except DownloadError as exc:
             with JOBS_LOCK:
                 JOBS[job_id]["errors"].append(
@@ -633,7 +718,9 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
             job["status"] = "done"
             job["finished_at"] = time.time()
             # Final bar reflects how much actually succeeded, not "100%" on failure.
-            job["current_progress"] = (job["completed"] / job["total"]) if job["total"] else 0.0
+            # Tracks we already had count as success.
+            ok = job["completed"] + job["skipped"]
+            job["current_progress"] = (ok / job["total"]) if job["total"] else 0.0
             job["current_title"] = ""
 
 
@@ -654,6 +741,7 @@ def api_extract():
             "status": "queued",
             "total": len(videos),
             "completed": 0,
+            "skipped": 0,
             "current_progress": 0.0,
             "current_title": "",
             "files": [],

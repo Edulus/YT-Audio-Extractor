@@ -99,9 +99,11 @@ Later launches skip the downloads and start in a couple of seconds.
 - 🔎 **Unified search bar** — paste a URL (single video or playlist) or type a search query
 - ▶ **In-browser audio preview** — small play button on each result streams the audio directly via a yt-dlp-resolved stream URL, so you can decide _before_ downloading
 - 📦 **Batch extraction** — select multiple tracks, watch each one's progress in real time via Server-Sent Events
-- :clipboard: **Expandable queue view**: click the Progress panel to see every track in the batch and its status (working, queued, done, failed). You can keep searching while a batch runs.
+- :clipboard: **Expandable queue view**: click the Progress panel to see every track in the batch and its status (working, queued, done, already have, failed). You can keep searching while a batch runs.
 - :arrows_counterclockwise: **Self-updating engine**: the launcher updates yt-dlp (with its YouTube challenge solver) on every launch, and the app retries without cookies if YouTube rejects a signed-in request.
 - 🎵 **BEST, OPUS, MP3, FLAC, WAV**: BEST (the default) keeps YouTube's original audio stream with no re-encoding, the highest quality available. The other formats are converted from that stream.
+- :label: **Tags and cover art**: each file gets its title, artist (the uploader when YouTube lists no artist), date, and source URL, plus the video thumbnail as embedded artwork, so tracks show up properly in music players and DJ software like Mixxx. Works for BEST, OPUS, MP3, and FLAC; WAV gets tags but can't hold artwork.
+- :fast_forward: **Skips tracks you already have**: a track already in the output folder shows as "Already have" in the queue and isn't downloaded again. A download history (`download-history.txt` in the output folder) remembers every video you've fetched, so it's never downloaded twice, even after you rename or move the file. To download something again, delete its line from that file (or delete the whole file).
 - 💾 **Direct-to-disk output** — files land in `~/Downloads/YT-Audio` and persist; no zip-and-download round trip through the browser
 - 🍪 **Browser cookies passthrough** — no specific browser required: the app auto-detects whichever supported browser it can read cookies from (Chrome, Firefox, Edge, Brave, Opera, Chromium, or Vivaldi) and passes them to yt-dlp, so YouTube treats requests as authenticated. If your browser is running, cookie access may fail because the cookie database is locked — close it (or use a browser you don't keep open) and the app falls back to running without cookies if none are readable
 - ⏱ **Anti-bot pacing** — randomized 3-7 s pause between consecutive tracks, plus a 1 s interval between yt-dlp's internal requests during search
@@ -172,7 +174,7 @@ The auto-download script (fetch-binaries.ps1) is Windows-only. On macOS/Linux, i
 2. **Preview** — click the small ▶ next to any result to audition the audio.
 3. **Pick** — tick the videos you want. **Select All** grabs the whole list.
 4. **Choose format**: BEST (default, original audio with no re-encoding), OPUS, MP3, FLAC, or WAV.
-5. **Extract** — click **Extract Audio (N)**. The Progress panel shows the active track, a progress bar, and a per-track count. Between tracks the app pauses 3-7 s.
+5. **Extract**: click **Extract Audio (N)**. The Progress panel shows the active track, a progress bar, and a per-track count. Between downloads the app pauses 3-7 s. Tracks you already have are skipped right away and marked "Already have".
 6. **Open Folder** — when the job finishes, click **Open Folder** to jump to `~/Downloads/YT-Audio` in File Explorer.
 
 ---
