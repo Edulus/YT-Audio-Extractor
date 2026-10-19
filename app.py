@@ -17,6 +17,8 @@ import webbrowser
 from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
 import yt_dlp
+from yt_dlp.extractor import get_info_extractor
+from yt_dlp.postprocessor import FFmpegPostProcessor, PostProcessor
 from yt_dlp.utils import DownloadError
 
 
@@ -27,10 +29,12 @@ app = Flask(__name__)
 OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "YT-Audio")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# yt-dlp download archive: one "youtube <video id>" line per finished track.
-# A video listed here is never fetched again, even if its file was renamed or
-# moved. Delete its line (or the whole file) to allow a re-download.
-ARCHIVE_FILE = os.path.join(OUTPUT_DIR, "download-history.txt")
+# Download history: one "youtube <video id> <format>" line per finished track.
+# A video is never fetched again in a format listed here, even if its file was
+# renamed or moved; other formats are still allowed. Delete its line (or the
+# whole file) to allow a re-download.
+HISTORY_FILE = os.path.join(OUTPUT_DIR, "download-history.txt")
+HISTORY_LOCK = threading.Lock()
 
 # In-memory job registry. Each job tracks its own state; a lock guards updates.
 JOBS: dict = {}
@@ -515,26 +519,45 @@ def _set_item(job_id: str, index: int, status: str) -> None:
             job["items"][index]["status"] = status
 
 
-def _archive_entry(ydl, url: str, video_id: str | None) -> dict | None:
-    """Return the minimal info dict yt-dlp uses for archive lookups, or None."""
-    if video_id:
-        return {"id": video_id, "ie_key": "Youtube"}
-    # No id from the search results: derive it from the URL the way yt-dlp does.
-    for key, ie in ydl._ies.items():
-        if ie.suitable(url):
-            temp_id = ie.get_temp_id(url)
-            return {"id": temp_id, "ie_key": key} if temp_id else None
-    return None
+_YOUTUBE_IE = get_info_extractor("Youtube")
 
 
-def _already_have(ydl, url: str, video: dict, audio_format: str) -> bool:
-    """True if this video is in the download history or already in OUTPUT_DIR.
+def _video_id_for(url: str, video: dict) -> str | None:
+    """The YouTube video id, from the search results or else from the URL."""
+    if video.get("id"):
+        return video["id"]
+    return _YOUTUBE_IE.get_temp_id(url) if _YOUTUBE_IE.suitable(url) else None
+
+
+def _history_key(video_id: str, audio_format: str) -> str:
+    """One history line per video and format, e.g. 'youtube jNQXAC9IVRw mp3'.
+
+    v3.6 wrote lines without a format ('youtube <id>'); those never match a
+    key, so they no longer block anything.
+    """
+    return f"youtube {video_id} {audio_format}"
+
+
+def _in_history(key: str) -> bool:
+    try:
+        with open(HISTORY_FILE, encoding="utf-8") as f:
+            return any(line.strip() == key for line in f)
+    except FileNotFoundError:
+        return False
+
+
+def _add_to_history(key: str) -> None:
+    with HISTORY_LOCK, open(HISTORY_FILE, "a", encoding="utf-8") as f:
+        f.write(key + "\n")
+
+
+def _already_have(ydl, video: dict, key: str | None, audio_format: str) -> bool:
+    """True if this video+format is in the history or already in OUTPUT_DIR.
 
     A file found on disk but missing from the history (e.g. downloaded before
-    v3.6) is added to the history, so renaming it later won't cause a re-fetch.
+    v3.7) is added to the history, so renaming it later won't cause a re-fetch.
     """
-    entry = _archive_entry(ydl, url, video.get("id"))
-    if entry and ydl.in_download_archive(entry):
+    if key and _in_history(key):
         return True
 
     title = video.get("title")
@@ -543,10 +566,67 @@ def _already_have(ydl, url: str, video: dict, audio_format: str) -> bool:
     exts = BEST_AUDIO_EXTS if audio_format == "best" else {audio_format}
     for ext in exts:
         if os.path.isfile(ydl.prepare_filename({"title": title, "ext": ext})):
-            if entry:
-                ydl.record_download_archive(entry)
+            if key:
+                _add_to_history(key)
             return True
     return False
+
+
+def _split_artist_title(title: str) -> tuple[str, str] | None:
+    """Split 'Artist - Title' on the first ' - ', or None if it doesn't match."""
+    artist, sep, track = title.partition(" - ")
+    artist, track = artist.strip(), track.strip()
+    return (artist, track) if sep and artist and track else None
+
+
+def _clean_channel_name(name: str) -> str:
+    """'Daft Punk - Topic' -> 'Daft Punk', 'DaftPunkVEVO' -> 'DaftPunk'."""
+    cleaned = re.sub(r"\s+-\s+Topic$", "", name)
+    cleaned = re.sub(r"\s*VEVO$", "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned or name
+
+
+class MusicTagsPP(PostProcessor):
+    """Fill in artist (and track title) when YouTube gives no artist.
+
+    Runs before download. FFmpegMetadata later writes 'artist' and 'track'
+    (falling back to the video title) into the file. Uploads YouTube already
+    tagged with an artist are left alone.
+    """
+
+    def run(self, info):
+        if any(info.get(k) for k in ("artist", "artists", "creator", "creators")):
+            return [], info
+        split = _split_artist_title(info.get("title") or "")
+        if split:
+            info["artist"], info["track"] = split
+        else:
+            channel = info.get("uploader") or info.get("channel")
+            if channel:
+                info["artist"] = _clean_channel_name(channel)
+        return [], info
+
+
+class SquareCoverPP(FFmpegPostProcessor):
+    """Center-crop the downloaded thumbnail to a square before it's embedded."""
+
+    def run(self, info):
+        for thumb in info.get("thumbnails") or []:
+            path = thumb.get("filepath")
+            if not path or not os.path.isfile(path):
+                continue
+            tmp = path + ".square.jpg"
+            # ffmpeg's crop centers by default; side = the shorter dimension.
+            self.run_ffmpeg(path, tmp, [
+                "-vf", "crop='min(iw,ih)':'min(iw,ih)'", "-q:v", "2", "-update", "1",
+            ])
+            os.replace(tmp, path)
+        return [], info
+
+
+# Postprocessors that run before the download, while _filename still points at
+# the source stream. Their hook calls say nothing about the final audio file.
+PRE_DOWNLOAD_PPS = {"ThumbnailsConvertor", "SquareCover", "MusicTags"}
 
 
 def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
@@ -576,9 +656,7 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
         # is done in the main loop, not here.
         if d.get("status") != "finished":
             return
-        # The thumbnail converter runs before download, when _filename still
-        # points at the source stream; it says nothing about the audio file.
-        if d.get("postprocessor") == "ThumbnailsConvertor":
+        if d.get("postprocessor") in PRE_DOWNLOAD_PPS:
             return
         info = d.get("info_dict") or {}
         path = info.get("filepath") or info.get("_filename")
@@ -628,7 +706,6 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
             "format": "bestaudio/best",
             "postprocessors": postprocessors,
             "outtmpl": os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s"),
-            "download_archive": ARCHIVE_FILE,
             "quiet": True,
             "no_warnings": True,
             "noprogress": True,  # suppress yt-dlp's stdout progress bar; we use progress_hook
@@ -640,12 +717,17 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
 
     hit_youtube = False
 
-    def download(url: str, video: dict) -> bool:
+    def download(url: str, video: dict, key: str | None) -> bool:
         """Download one track. Returns False if it was skipped as already had."""
         nonlocal hit_youtube
         with yt_dlp.YoutubeDL(build_opts()) as ydl:
-            if _already_have(ydl, url, video, audio_format):
+            if _already_have(ydl, video, key, audio_format):
                 return False
+            # Added here rather than in opts: yt-dlp only builds its own
+            # postprocessors from opts. Each lands at the end of its stage.
+            ydl.add_post_processor(MusicTagsPP(ydl), when="pre_process")
+            if embed_artwork:
+                ydl.add_post_processor(SquareCoverPP(ydl), when="before_dl")
             # Between consecutive downloads, pause for a randomized 3-7 seconds.
             # Never before the first one, and never for tracks we skip.
             if hit_youtube:
@@ -655,7 +737,6 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
             return True
 
     for i, video in enumerate(videos):
-
         url = video.get("url") or (
             f"https://www.youtube.com/watch?v={video['id']}" if video.get("id") else None
         )
@@ -664,6 +745,9 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
                 JOBS[job_id]["errors"].append("Missing URL for one of the selected videos.")
             _set_item(job_id, i, "failed")
             continue
+
+        video_id = _video_id_for(url, video)
+        key = _history_key(video_id, audio_format) if video_id else None
 
         _update_job(job_id, current_progress=0.0, current_title=video.get("title") or url)
         _set_item(job_id, i, "active")
@@ -674,12 +758,12 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
 
         try:
             try:
-                fetched = download(url, video)
+                fetched = download(url, video, key)
             except DownloadError as exc:
                 # YouTube sometimes rejects signed-in requests outright. Retry
                 # once without cookies (and stay cookie-free for the session).
                 if _is_reload_error(str(exc)) and _disable_cookies("download"):
-                    fetched = download(url, video)
+                    fetched = download(url, video, key)
                 else:
                     raise
             if not fetched:
@@ -707,6 +791,8 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
             if len(job["files"]) > files_before:
                 job["completed"] += 1
                 job["items"][i]["status"] = "done"
+                if key:
+                    _add_to_history(key)
             elif len(job["errors"]) == errors_before:
                 job["errors"].append(f"{video.get('title') or url}: extraction failed")
             if job["items"][i]["status"] != "done":

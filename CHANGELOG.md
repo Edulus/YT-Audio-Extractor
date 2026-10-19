@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.7.0] - 2026-10-19
+### Changed
+- The download history is now per video and format: having a track as MP3
+  no longer blocks getting it as FLAC. Lines in `download-history.txt` now
+  read `youtube <video id> <format>`. The app manages this file itself
+  instead of using yt-dlp's download archive.
+- Embedded cover art is center-cropped to a square, so it looks clean in
+  music players and in Mixxx's library and deck views
+- When YouTube gives no artist, a title of the form "Artist - Title" is
+  split on the first " - " into the artist and title tags. Titles without
+  that pattern keep the channel name as artist, with " - Topic" and "VEVO"
+  removed. Uploads YouTube already tags with an artist are unchanged.
+  The filename still uses the full video title.
+- Version bumped to v3.7 in index.html and installer.iss
+### Upgrade note
+- History lines written by v3.6 (`youtube <video id>`, no format) are
+  ignored. Tracks still in the folder under their original name are
+  recognized and re-recorded with their format; a v3.6 track you renamed
+  could be downloaded again once.
+
 ## [3.6.0] - 2026-10-19
 ### Added
 - Tags and cover art: every extracted file gets its title, artist (the
