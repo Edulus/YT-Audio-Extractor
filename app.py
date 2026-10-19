@@ -31,7 +31,10 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 JOBS: dict = {}
 JOBS_LOCK = threading.Lock()
 
-ALLOWED_FORMATS = {"mp3", "flac", "wav"}
+ALLOWED_FORMATS = {"best", "opus", "mp3", "flac", "wav"}
+
+# Extensions the "best" option can produce (yt-dlp keeps the source codec).
+BEST_AUDIO_EXTS = {"opus", "m4a", "webm", "ogg", "aac", "mp3", "flac", "wav"}
 
 JOB_TTL_SECONDS = 3600        # 1 hour — finished job entries dropped from registry
 CLEANUP_INTERVAL_SECONDS = 1800  # 30 minutes
@@ -87,6 +90,15 @@ def _ffmpeg_available() -> bool:
     return FFMPEG_LOCATION is not None or shutil.which("ffmpeg") is not None
 
 
+def _ejs_available() -> bool:
+    """True if the yt-dlp-ejs challenge solver package is installed."""
+    try:
+        import yt_dlp_ejs  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 class _SilentLogger:
     def debug(self, *a, **k): pass
     def info(self, *a, **k): pass
@@ -117,7 +129,9 @@ def detect_browser() -> str | None:
 
 
 # Set once at startup. If None, neither search nor extract will pass cookies.
+# Can be switched off at runtime by _disable_cookies() if YouTube rejects them.
 DETECTED_BROWSER = detect_browser()
+_COOKIE_LOCK = threading.Lock()
 
 
 def _maybe_with_cookies(opts: dict) -> dict:
@@ -127,12 +141,51 @@ def _maybe_with_cookies(opts: dict) -> dict:
     return opts
 
 
+def _disable_cookies(reason: str) -> bool:
+    """Stop sending browser cookies for the rest of this session.
+
+    Returns True if cookies were on (so the caller should retry without them),
+    False if they were already off (a retry would hit the same error).
+    """
+    global DETECTED_BROWSER
+    with _COOKIE_LOCK:
+        if DETECTED_BROWSER is None:
+            return False
+        sys.stderr.write(
+            f"YouTube rejected requests using {DETECTED_BROWSER} cookies ({reason}). "
+            "Continuing without cookies for this session.\n"
+        )
+        DETECTED_BROWSER = None
+        return True
+
+
+# yt-dlp colors its error text with ANSI escape codes; strip them for the UI.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _clean_error(message: str) -> str:
+    """Strip ANSI color codes and yt-dlp's 'ERROR: [youtube] <id>:' prefix."""
+    msg = _ANSI_RE.sub("", message).strip()
+    msg = re.sub(r"^ERROR:\s*", "", msg)
+    msg = re.sub(r"^\[[^\]]+\]\s*[\w-]+:\s*", "", msg)
+    return msg
+
+
+def _is_reload_error(message: str) -> bool:
+    """YouTube's 'The page needs to be reloaded' rejection."""
+    return "page needs to be reloaded" in message.lower()
+
+
 def _humanize_yt_dlp_error(message: str) -> str:
     """Translate common yt-dlp error strings into actionable hints."""
+    message = _clean_error(message)
     lower = message.lower()
     if "ffmpeg" in lower and ("not found" in lower or "could not find" in lower):
         return ("ffmpeg is required but not on PATH. Install ffmpeg "
                 "(https://ffmpeg.org/download.html) and restart.")
+    if _is_reload_error(message):
+        return ("YouTube rejected the request. Close the app and re-run "
+                "YT-Audio-Extractor.bat so it updates yt-dlp, then try again.")
     if "deno" in lower or "node" in lower or "javascript" in lower or "ejs" in lower:
         return ("YouTube now requires a JavaScript runtime. Install Deno "
                 "(https://deno.com) or Node.js, ensure it's on PATH, then retry.")
@@ -140,7 +193,7 @@ def _humanize_yt_dlp_error(message: str) -> str:
         return "This video is private."
     if "video unavailable" in lower:
         return "This video is unavailable."
-    if "sign in to confirm your age" in lower or "age" in lower and "restricted" in lower:
+    if "sign in to confirm your age" in lower or ("age" in lower and "restricted" in lower):
         return "This video is age-restricted and cannot be downloaded anonymously."
     return message
 
@@ -223,19 +276,45 @@ def _normalize_entry(entry: dict) -> dict:
     }
 
 
+class _ErrorCollector(_SilentLogger):
+    """Logger that remembers error lines, so we can inspect swallowed failures."""
+
+    def __init__(self):
+        self.errors: list[str] = []
+
+    def error(self, msg, *a, **k):
+        self.errors.append(str(msg))
+
+
 def _run_extract_info(target: str) -> dict:
-    """Wrapper around yt-dlp's extract_info with the right options for metadata."""
-    opts = _maybe_with_cookies({
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "extract_flat": "in_playlist",
-        "ignoreerrors": True,
-        # 1s pause between requests yt-dlp makes internally during search/metadata.
-        "sleep_interval_requests": 1,
-    })
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        return ydl.extract_info(target, download=False)
+    """Wrapper around yt-dlp's extract_info with the right options for metadata.
+
+    ignoreerrors=True means a rejected request comes back as None instead of
+    raising, so we collect error lines and retry once without cookies if
+    YouTube rejected the signed-in request.
+    """
+    def attempt():
+        logger = _ErrorCollector()
+        opts = _maybe_with_cookies({
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "extract_flat": "in_playlist",
+            "ignoreerrors": True,
+            # 1s pause between requests yt-dlp makes internally during search/metadata.
+            "sleep_interval_requests": 1,
+            "logger": logger,
+        })
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            return ydl.extract_info(target, download=False), logger.errors
+
+    info, errors = attempt()
+    if info is None and any(_is_reload_error(e) for e in errors):
+        if _disable_cookies("search"):
+            info, errors = attempt()
+    if info is None and errors:
+        raise DownloadError(errors[-1])
+    return info
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +351,7 @@ def api_search():
         message = str(exc)
         if "HTTP Error 429" in message or "Too Many Requests" in message:
             return jsonify({"error": "YouTube is rate-limiting. Try again in a minute."}), 429
-        return jsonify({"error": f"Could not fetch: {message}"}), 400
+        return jsonify({"error": f"Could not fetch: {_humanize_yt_dlp_error(message)}"}), 400
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": f"Unexpected error: {exc}"}), 500
 
@@ -328,15 +407,25 @@ _VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
 def _resolve_audio_stream(video_id: str) -> dict:
     """Return {'url': ..., 'mime': ...} for the best audio-only stream."""
     url = f"https://www.youtube.com/watch?v={video_id}"
-    opts = _maybe_with_cookies({
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "format": "bestaudio/best",
-        "noplaylist": True,
-    })
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+
+    def attempt():
+        opts = _maybe_with_cookies({
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "format": "bestaudio/best",
+            "noplaylist": True,
+        })
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            return ydl.extract_info(url, download=False)
+
+    try:
+        info = attempt()
+    except DownloadError as exc:
+        if _is_reload_error(str(exc)) and _disable_cookies("preview"):
+            info = attempt()
+        else:
+            raise
 
     if not info:
         raise RuntimeError("No stream info returned")
@@ -397,6 +486,7 @@ def _job_snapshot(job: dict) -> dict:
         "current_progress": job.get("current_progress", 0.0),
         "current_title": job.get("current_title", ""),
         "errors": list(job.get("errors", [])),
+        "items": [dict(i) for i in job.get("items", [])],
     }
 
 
@@ -407,6 +497,12 @@ def _update_job(job_id: str, **fields) -> None:
             job.update(fields)
 
 
+def _set_item(job_id: str, index: int, status: str) -> None:
+    """Set one queue entry's status: queued / active / done / failed."""
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if job is not None and 0 <= index < len(job.get("items", [])):
+            job["items"][index]["status"] = status
 def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
     """Worker thread: download and convert each requested video."""
     # All jobs share OUTPUT_DIR (flat). yt-dlp's default postprocessor behavior
@@ -440,7 +536,10 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
         if not path:
             return
         ext = os.path.splitext(path)[1].lower().lstrip(".")
-        if ext != audio_format:
+        if audio_format == "best":
+            if ext not in BEST_AUDIO_EXTS:
+                return
+        elif ext != audio_format:
             return
         with JOBS_LOCK:
             job = JOBS.get(job_id)
@@ -449,23 +548,29 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
             if path not in job["files"]:
                 job["files"].append(path)
 
-    ydl_opts = _with_ffmpeg(_maybe_with_cookies({
-        "format": "bestaudio/best",
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": audio_format,
-            # Hardcoded to '0' (best quality). MP3 = ~V0 VBR; ignored for FLAC/WAV.
-            "preferredquality": "0",
-        }],
-        "outtmpl": os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s"),
-        "quiet": True,
-        "no_warnings": True,
-        "noprogress": True,  # suppress yt-dlp's stdout progress bar; we use progress_hook
-        "progress_hooks": [progress_hook],
-        "postprocessor_hooks": [postprocessor_hook],
-        "writethumbnail": False,
-        "noplaylist": True,  # one URL per call; never expand to a playlist
-    }))
+    def build_opts() -> dict:
+        # Rebuilt per download so a mid-job switch to "no cookies" takes effect.
+        return _with_ffmpeg(_maybe_with_cookies({
+            "format": "bestaudio/best",
+            "postprocessors": [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": audio_format,
+                # Hardcoded to '0' (best quality). MP3 = ~V0 VBR; ignored for FLAC/WAV.
+                "preferredquality": "0",
+            }],
+            "outtmpl": os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+            "noprogress": True,  # suppress yt-dlp's stdout progress bar; we use progress_hook
+            "progress_hooks": [progress_hook],
+            "postprocessor_hooks": [postprocessor_hook],
+            "writethumbnail": False,
+            "noplaylist": True,  # one URL per call; never expand to a playlist
+        }))
+
+    def download(url: str) -> None:
+        with yt_dlp.YoutubeDL(build_opts()) as ydl:
+            ydl.download([url])
 
     for i, video in enumerate(videos):
         # Between consecutive tracks, pause for a randomized 3-7 seconds. Skipped
@@ -479,17 +584,26 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
         if not url:
             with JOBS_LOCK:
                 JOBS[job_id]["errors"].append("Missing URL for one of the selected videos.")
+            _set_item(job_id, i, "failed")
             continue
 
         _update_job(job_id, current_progress=0.0, current_title=video.get("title") or url)
+        _set_item(job_id, i, "active")
 
         with JOBS_LOCK:
             files_before = len(JOBS[job_id]["files"])
             errors_before = len(JOBS[job_id]["errors"])
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+            try:
+                download(url)
+            except DownloadError as exc:
+                # YouTube sometimes rejects signed-in requests outright. Retry
+                # once without cookies (and stay cookie-free for the session).
+                if _is_reload_error(str(exc)) and _disable_cookies("download"):
+                    download(url)
+                else:
+                    raise
         except DownloadError as exc:
             with JOBS_LOCK:
                 JOBS[job_id]["errors"].append(
@@ -507,15 +621,19 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
                 continue
             if len(job["files"]) > files_before:
                 job["completed"] += 1
+                job["items"][i]["status"] = "done"
             elif len(job["errors"]) == errors_before:
                 job["errors"].append(f"{video.get('title') or url}: extraction failed")
+            if job["items"][i]["status"] != "done":
+                job["items"][i]["status"] = "failed"
 
     with JOBS_LOCK:
         job = JOBS.get(job_id)
         if job is not None:
             job["status"] = "done"
             job["finished_at"] = time.time()
-            job["current_progress"] = 1.0
+            # Final bar reflects how much actually succeeded, not "100%" on failure.
+            job["current_progress"] = (job["completed"] / job["total"]) if job["total"] else 0.0
             job["current_title"] = ""
 
 
@@ -523,7 +641,7 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
 def api_extract():
     payload = request.get_json(silent=True) or {}
     videos = payload.get("videos") or []
-    audio_format = (payload.get("format") or "mp3").lower()
+    audio_format = (payload.get("format") or "best").lower()
 
     if not isinstance(videos, list) or not videos:
         return jsonify({"error": "No videos provided"}), 400
@@ -540,6 +658,7 @@ def api_extract():
             "current_title": "",
             "files": [],
             "errors": [],
+            "items": [{"title": v.get("title") or v.get("url") or "(untitled)", "status": "queued"} for v in videos],
             "format": audio_format,
             "created_at": time.time(),
         }
@@ -733,12 +852,20 @@ def main() -> None:
             )
         sys.exit(1)
 
+    sys.stderr.write(f"yt-dlp: {yt_dlp.version.__version__}\n")
     sys.stderr.write(
         f"ffmpeg: {'bundled (bin/)' if FFMPEG_LOCATION else 'system PATH'}\n"
     )
     sys.stderr.write(
         f"JS runtime: {'bundled deno (bin/)' if _bundled('deno' + _EXE_SUFFIX) else 'system PATH'}\n"
     )
+    if _ejs_available():
+        sys.stderr.write("JS challenge solver: yt-dlp-ejs installed\n")
+    else:
+        sys.stderr.write(
+            "WARNING: yt-dlp-ejs is not installed, so YouTube downloads will likely fail.\n"
+            '  Fix: python -m pip install -U "yt-dlp[default]"\n'
+        )
 
     if DETECTED_BROWSER is not None:
         sys.stderr.write(f"Cookie source: {DETECTED_BROWSER}\n")

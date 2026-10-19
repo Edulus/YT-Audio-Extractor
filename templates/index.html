@@ -478,6 +478,29 @@
       margin-bottom: 4px;
     }
 
+    /* ---- Queue (expandable progress panel) ---- */
+    #progress-container .progress-panel { cursor: pointer; }
+    .queue-hint { color: var(--text-faint); }
+    .progress-panel:hover .queue-hint { color: var(--accent); }
+    .queue {
+      display: none;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+    .progress-panel.expanded .queue { display: flex; flex-direction: column; gap: 2px; }
+    .queue-row { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; color: var(--text-dim); }
+    .queue-num { font-family: var(--mono); font-size: 11px; color: var(--text-faint); width: 28px; flex-shrink: 0; text-align: right; }
+    .queue-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .queue-status { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+    .queue-row.active { color: var(--text); }
+    .queue-row.active .queue-status { color: var(--accent); }
+    .queue-row.done .queue-status { color: var(--success); }
+    .queue-row.failed .queue-status { color: var(--danger); }
+    .queue-row.queued .queue-status { color: var(--text-faint); }
     /* ---- Animations ---- */
     @keyframes fade-in {
       from { opacity: 0; transform: translateY(2px); }
@@ -508,7 +531,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v3.0</span>
+      <span class="tag">v3.5</span>
     </header>
 
     <!-- Search -->
@@ -535,7 +558,9 @@
         <div class="settings-row">
           <span class="label">Format</span>
           <div class="toggle-group" data-group="format">
-            <button type="button" class="toggle active" data-value="mp3">MP3</button>
+            <button type="button" class="toggle active" data-value="best" title="Original YouTube audio, no re-encoding">BEST</button>
+            <button type="button" class="toggle" data-value="opus">OPUS</button>
+            <button type="button" class="toggle" data-value="mp3">MP3</button>
             <button type="button" class="toggle" data-value="flac">FLAC</button>
             <button type="button" class="toggle" data-value="wav">WAV</button>
           </div>
@@ -588,8 +613,9 @@
     const state = {
       results: [],
       selectedIds: new Set(),
-      format: 'mp3',
+      format: 'best',
       jobId: null,
+      jobActive: false,
       isSearching: false,
       isLoadingMore: false,
       searchQuery: '',
@@ -750,7 +776,8 @@
       state.searchHasMore = false;
       state.selectedIds.clear();
       renderResults();
-      resetJobUI();
+      // Keep an active job's progress visible while searching.
+      if (!state.jobActive) resetJobUI();
 
       try {
         const res = await fetch('/api/search', {
@@ -937,6 +964,11 @@
 
     function updateExtractButton() {
       const n = state.selectedIds.size;
+      if (state.jobActive) {
+        els.extractBtn.textContent = 'Extracting...';
+        els.extractBtn.disabled = true;
+        return;
+      }
       els.extractBtn.textContent = `Extract Audio (${n})`;
       els.extractBtn.disabled = n === 0;
     }
@@ -958,6 +990,7 @@
         currentEventSource = null;
       }
       state.jobId = null;
+      state.jobActive = false;
       els.progressSection.classList.add('hidden');
       els.progressContainer.innerHTML = '';
       els.downloadSection.classList.add('hidden');
@@ -996,6 +1029,8 @@
       }
 
       state.jobId = job.job_id;
+      state.jobActive = true;
+      updateExtractButton();
       state.outputDir = job.output_dir || '';
       renderProgressInitial(selected.length);
       streamJobStatus(job.job_id);
@@ -1009,10 +1044,10 @@
           <div class="progress-title" id="prog-title">&nbsp;</div>
           <div class="bar"><div class="bar-fill" id="prog-fill"></div></div>
           <div class="progress-counts">
-            <span id="prog-counts">Completed 0 of ${total}</span>
+            <span><span id="prog-counts">Completed 0 of ${total}</span><span class="queue-hint" id="prog-hint"> &middot; show queue &#9662;</span></span>
             <span id="prog-pct">0%</span>
           </div>
-          <div class="progress-errors hidden" id="prog-errors"></div>
+          <div class="queue" id="prog-queue"></div><div class="progress-errors hidden" id="prog-errors"></div>
         </div>
       `;
     }
@@ -1056,6 +1091,7 @@
       pctEl.textContent = pct + '%';
       countsEl.textContent = `Completed ${payload.completed} of ${payload.total}`;
 
+      renderQueue(payload.items || []);
       if (payload.errors && payload.errors.length > 0) {
         errorsEl.classList.remove('hidden');
         errorsEl.innerHTML = '<div class="err-label">// Errors</div>' +
@@ -1066,6 +1102,27 @@
       }
     }
 
+    // ---- Expandable queue in the Progress panel ----
+    const QUEUE_LABELS = { queued: 'Queued', active: 'Working', done: 'Done', failed: 'Failed' };
+    function renderQueue(items) {
+      const q = document.getElementById('prog-queue');
+      if (!q) return;
+      q.innerHTML = items.map((it, i) =>
+        `<div class="queue-row ${it.status}">` +
+        `<span class="queue-num">${i + 1}.</span>` +
+        `<span class="queue-title">${escapeHtml(it.title)}</span>` +
+        `<span class="queue-status">${QUEUE_LABELS[it.status] || escapeHtml(it.status)}</span>` +
+        `</div>`
+      ).join('');
+    }
+    // Click anywhere in the Progress panel to show or hide the queue.
+    els.progressContainer.addEventListener('click', () => {
+      const panel = els.progressContainer.querySelector('.progress-panel');
+      if (!panel || !document.getElementById('prog-queue')) return;
+      const open = panel.classList.toggle('expanded');
+      const hint = document.getElementById('prog-hint');
+      if (hint) hint.innerHTML = open ? ' &middot; hide queue &#9652;' : ' &middot; show queue &#9662;';
+    });
     function streamJobStatus(jobId) {
       if (currentEventSource) {
         currentEventSource.close();
@@ -1083,6 +1140,7 @@
           renderProgressError(payload.error);
           es.close();
           currentEventSource = null;
+          state.jobActive = false;
           updateExtractButton();
           return;
         }
@@ -1092,11 +1150,13 @@
         if (payload.status === 'done') {
           es.close();
           currentEventSource = null;
+          state.jobActive = false;
           updateExtractButton();
           onJobDone(jobId, payload);
         } else if (payload.status === 'error') {
           es.close();
           currentEventSource = null;
+          state.jobActive = false;
           updateExtractButton();
         }
       };
@@ -1106,6 +1166,7 @@
         if (es.readyState === EventSource.CLOSED) {
           renderProgressError('Lost connection to status stream.');
           currentEventSource = null;
+          state.jobActive = false;
           updateExtractButton();
         }
       };
