@@ -11,7 +11,7 @@
 ; ============================================================================
 
 #define AppName "YT Audio Extractor"
-#define AppVersion "3.5"
+#define AppVersion "3.6"
 #define AppPublisher "Edward Yersh"
 #define AppExeName "YT-Audio-Extractor.bat"
 #define AppIcon "YT-Audio-Extractor.ico"

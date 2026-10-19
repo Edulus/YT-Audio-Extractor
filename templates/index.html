@@ -500,6 +500,7 @@
     .queue-row.active .queue-status { color: var(--accent); }
     .queue-row.done .queue-status { color: var(--success); }
     .queue-row.failed .queue-status { color: var(--danger); }
+    .queue-row.have .queue-status { color: var(--text-dim); }
     .queue-row.queued .queue-status { color: var(--text-faint); }
     /* ---- Animations ---- */
     @keyframes fade-in {
@@ -531,7 +532,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v3.5</span>
+      <span class="tag">v3.6</span>
     </header>
 
     <!-- Search -->
@@ -1089,7 +1090,8 @@
       const pct = Math.round((payload.current_progress || 0) * 100);
       fillEl.style.width = pct + '%';
       pctEl.textContent = pct + '%';
-      countsEl.textContent = `Completed ${payload.completed} of ${payload.total}`;
+      countsEl.textContent = `Completed ${payload.completed} of ${payload.total}` +
+        (payload.skipped ? `, ${payload.skipped} already had` : '');
 
       renderQueue(payload.items || []);
       if (payload.errors && payload.errors.length > 0) {
@@ -1103,7 +1105,7 @@
     }
 
     // ---- Expandable queue in the Progress panel ----
-    const QUEUE_LABELS = { queued: 'Queued', active: 'Working', done: 'Done', failed: 'Failed' };
+    const QUEUE_LABELS = { queued: 'Queued', active: 'Working', done: 'Done', have: 'Already have', failed: 'Failed' };
     function renderQueue(items) {
       const q = document.getElementById('prog-queue');
       if (!q) return;
@@ -1175,12 +1177,13 @@
     function onJobDone(jobId, payload) {
       const total      = payload.total || 0;
       const completed  = payload.completed || 0;
+      const skipped    = payload.skipped || 0;
       const errorCount = (payload.errors || []).length;
       const outputDir  = state.outputDir || '';
 
       els.downloadSection.classList.remove('hidden');
 
-      if (completed === 0) {
+      if (completed === 0 && skipped === 0) {
         els.downloadContainer.innerHTML = `
           <div class="download-panel">
             <div class="info">
@@ -1192,11 +1195,16 @@
         return;
       }
 
-      const headline = completed > 1
-        ? `${completed} files saved`
-        : `1 file saved`;
+      const headline = completed === 0
+        ? 'Nothing new to download'
+        : completed > 1
+          ? `${completed} files saved`
+          : `1 file saved`;
+      const already = skipped > 0
+        ? `<div class="sub">${skipped} track${skipped === 1 ? '' : 's'} already in your folder, skipped.</div>`
+        : '';
       const partial = errorCount > 0
-        ? `<div class="sub partial">${errorCount} track${errorCount === 1 ? '' : 's'} failed (${completed}/${total}).</div>`
+        ? `<div class="sub partial">${errorCount} track${errorCount === 1 ? '' : 's'} failed (${completed + skipped}/${total}).</div>`
         : '';
 
       els.downloadContainer.innerHTML = `
@@ -1204,6 +1212,7 @@
           <div class="info">
             <div>${headline}</div>
             <div class="sub">${escapeHtml(outputDir)}</div>
+            ${already}
             ${partial}
           </div>
           <button type="button" id="open-folder-btn" class="btn primary">Open Folder</button>
