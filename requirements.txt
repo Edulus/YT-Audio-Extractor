@@ -1,2 +1,3 @@
 flask
-yt-dlp
+# [default] pulls in yt-dlp-ejs, the JS challenge solver scripts YouTube now requires.
+yt-dlp[default]

@@ -18,3 +18,10 @@ ytaudio_*/
 .claude/
 CLAUDE_BRIEFING.md
 icon_preview.html
+
+# Local backups
+backup-*/
+
+# Local backups and patch leftovers
+*.bak
+patch.ps1

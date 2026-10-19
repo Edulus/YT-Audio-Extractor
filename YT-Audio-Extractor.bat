@@ -2,7 +2,7 @@
 REM ============================================================
 REM   YT Audio Extractor - launcher
 REM   Verifies the environment, installs missing Python packages,
-REM   and starts the Flask app.
+REM   keeps yt-dlp up to date, and starts the Flask app.
 REM ============================================================
 
 setlocal EnableDelayedExpansion
@@ -28,7 +28,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr "127.0.0.1:5000" ^| findstr "
     ) else (
         echo [X] Process %%a is holding port 5000 and could not be killed.
         echo     Open Task Manager ^(Ctrl+Shift+Esc^), find python.exe with PID %%a,
-        echo     right-click, End task. Then re-run start.bat.
+        echo     right-click, End task. Then re-run YT-Audio-Extractor.bat.
     )
 )
 if "!FOUND!" NEQ "!KILLED!" goto :fatal
@@ -104,11 +104,13 @@ echo [OK] Deno JS runtime ^(bundled^)
 if "!ERRORS!" NEQ "0" goto :fatal
 
 REM ---------- Python packages ----------
-python -c "import flask, yt_dlp" >nul 2>&1
+REM yt_dlp_ejs is the JS challenge solver YouTube now requires. It comes with
+REM yt-dlp[default]; plain "pip install yt-dlp" leaves it out.
+python -c "import flask, yt_dlp, yt_dlp_ejs" >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo [!] Required Python packages are missing ^(flask, yt-dlp^).
-    echo     About to run: python -m pip install -r requirements.txt
+    echo [WARN] Required Python packages are missing ^(flask, yt-dlp, yt-dlp-ejs^).
+    echo     About to run: python -m pip install -U -r requirements.txt
     echo.
     set "YN="
     set /p YN="Install now? [Y/n]: "
@@ -116,16 +118,27 @@ if errorlevel 1 (
         echo Aborted by user.
         goto :end
     )
-    python -m pip install -r requirements.txt
+    python -m pip install -U -r requirements.txt
     if errorlevel 1 (
         echo.
         echo [X] Package install failed.
-        echo     Try manually:  python -m pip install -r requirements.txt
+        echo     Try manually:  python -m pip install -U -r requirements.txt
         goto :fatal
     )
     echo [OK] Packages installed
 ) else (
     echo [OK] Python packages installed
+    REM ---------- Keep yt-dlp current ----------
+    REM YouTube changes often and old yt-dlp versions break. Upgrading on every
+    REM launch takes a few seconds when already up to date. Failure here is
+    REM not fatal ^(e.g. offline^): we keep the installed version.
+    echo [..] Checking for yt-dlp updates...
+    python -m pip install -q -U "yt-dlp[default]" >nul 2>&1
+    if errorlevel 1 (
+        echo [WARN] Could not update yt-dlp. Continuing with the installed version.
+    ) else (
+        for /f "tokens=*" %%v in ('python -c "import yt_dlp; print(yt_dlp.version.__version__)" 2^>nul') do echo [OK] yt-dlp %%v
+    )
 )
 
 REM ---------- Launch ----------
@@ -148,7 +161,7 @@ goto :eof
 :fatal
 echo.
 echo ============================================================
-echo   Cannot start. Fix the issue^(s^) above and re-run start.bat.
+echo   Cannot start. Fix the issue^(s^) above and re-run YT-Audio-Extractor.bat.
 echo ============================================================
 :end
 pause
