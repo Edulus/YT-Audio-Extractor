@@ -2,8 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [4.0.0] - 2026-10-28
+## [3.9.0] - 2026-10-28
 ### Added
+- Choose where files are saved: clicking Extract Audio opens a native
+  folder window (in front of the browser) where you pick or create the
+  destination. Cancel backs out without downloading anything. The window
+  starts in the last folder you used, which is remembered in
+  `%APPDATA%\YT-Audio-Extractor\settings.json`.
+- The Progress panel shows which folder the batch is being saved to
 - Pause, Resume and Stop buttons in the Progress panel while a batch runs.
   Pause takes effect immediately, even mid-download, and Resume continues
   the same download. Stop cancels the current download, deletes its
@@ -16,18 +22,6 @@ All notable changes to this project will be documented in this file.
 - The 3-7 s pause between downloads also honours Pause and Stop
 - The ffmpeg conversion step can't be interrupted, so a Pause or Stop
   clicked during it takes effect as soon as it finishes
-- Version bumped to v4.0 in index.html and installer.iss (the +0.1 rule
-  rolls 3.9 over to 4.0)
-
-## [3.9.0] - 2026-10-28
-### Added
-- Choose where files are saved: clicking Extract Audio opens a native
-  folder window (in front of the browser) where you pick or create the
-  destination. Cancel backs out without downloading anything. The window
-  starts in the last folder you used, which is remembered in
-  `%APPDATA%\YT-Audio-Extractor\settings.json`.
-- The Progress panel shows which folder the batch is being saved to
-### Changed
 - Playlist subfolders are created inside the folder you pick
 - Open Folder falls back to the last folder you picked
 - The page never sends a folder path to the server: it gets a one-time
