@@ -9,8 +9,12 @@ All notable changes to this project will be documented in this file.
   `~/Downloads/YT-Audio/My Playlist/`. Single videos and search results
   still go to the main folder. Characters Windows doesn't allow in folder
   names are replaced with `_`.
-- Link to Soundiiz under the search bar, for converting Spotify or Apple
-  Music playlists to YouTube playlists that can be pasted here
+- Soundiiz logo link under the search bar, for converting Spotify, Apple
+  Music, SoundCloud and other playlists to YouTube playlists that can be
+  pasted here. The logo comes from the Soundiiz press kit and is bundled
+  in `static/`, so the page loads nothing from outside localhost.
+- Spotify, Apple Music, SoundCloud and YouTube in that hint are links that
+  open in a new tab
 ### Changed
 - Open Folder opens the playlist's subfolder after a playlist batch
 - The search placeholder mentions playlist URLs
