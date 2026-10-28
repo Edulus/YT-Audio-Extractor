@@ -633,14 +633,127 @@ _WINDOWS_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in rang
                            *(f"LPT{i}" for i in range(1, 10))}
 
 
-def _playlist_folder(name: str) -> str:
-    """OUTPUT_DIR/<playlist name>, with the name made safe as a folder name."""
+def _playlist_folder(name: str, base: str | None = None) -> str:
+    """<base>/<playlist name>, with the name made safe as a folder name.
+
+    base defaults to OUTPUT_DIR.
+    """
     safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)[:100].strip(" .")
     if not safe:
         safe = "Playlist"
     if safe.upper() in _WINDOWS_RESERVED_NAMES:
         safe += "_"
-    return os.path.join(OUTPUT_DIR, safe)
+    return os.path.join(base or OUTPUT_DIR, safe)
+
+
+# ---------------------------------------------------------------------------
+# Choosing the download folder
+# ---------------------------------------------------------------------------
+# Clicking Extract opens a native folder picker on this machine. The browser
+# can't do this itself (it never learns real local paths), so the server shows
+# the dialog. The client never sends a path: it gets back a one-time folder_id
+# that /api/extract trades for the folder the user actually picked, so another
+# web page can't point downloads at an arbitrary folder.
+
+def _settings_file() -> str:
+    base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "YT-Audio-Extractor", "settings.json")
+
+
+def _load_settings() -> dict:
+    try:
+        with open(_settings_file(), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_settings(settings: dict) -> None:
+    path = _settings_file()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+    except OSError as exc:
+        sys.stderr.write(f"Could not save settings to {path}: {exc}\n")
+
+
+def _last_download_dir() -> str:
+    """The folder picked last time, if it still exists; otherwise OUTPUT_DIR."""
+    folder = _load_settings().get("download_dir")
+    return folder if isinstance(folder, str) and os.path.isdir(folder) else OUTPUT_DIR
+
+
+FOLDER_PICKER_LOCK = threading.Lock()
+CHOSEN_FOLDERS: dict = {}  # folder_id -> path, each used once by /api/extract
+CHOSEN_FOLDERS_LOCK = threading.Lock()
+FOLDER_DIALOG_TITLE = "Choose where to save the audio files"
+
+
+def _ask_for_folder(initial: str) -> str | None:
+    """Show a native folder picker. Returns the chosen path, or None if cancelled."""
+    if platform.system() == "Darwin":
+        # Tk dialogs must run on the main thread on macOS; AppleScript's
+        # picker has no such limit.
+        quoted = initial.replace("\\", "\\\\").replace('"', '\\"')
+        script = (f'POSIX path of (choose folder with prompt "{FOLDER_DIALOG_TITLE}" '
+                  f'default location POSIX file "{quoted}")')
+        result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+        path = result.stdout.strip()
+        return os.path.normpath(path) if result.returncode == 0 and path else None
+
+    import tkinter
+    from tkinter import filedialog
+
+    if platform.system() == "Windows":
+        # Same Alt-tap trick as _focus_explorer_window: without it Windows
+        # opens the dialog behind the browser, because we aren't foreground.
+        import ctypes
+        user32 = ctypes.windll.user32
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 0x0002, 0)
+
+    root = tkinter.Tk()
+    try:
+        root.withdraw()
+        root.attributes("-topmost", True)
+        root.update()
+        path = filedialog.askdirectory(parent=root, initialdir=initial,
+                                       title=FOLDER_DIALOG_TITLE, mustexist=False)
+    finally:
+        root.destroy()
+    return os.path.normpath(path) if path else None
+
+
+@app.post("/api/choose-folder")
+def api_choose_folder():
+    """Ask the user where to save, via a native folder picker on this machine."""
+    if not FOLDER_PICKER_LOCK.acquire(blocking=False):
+        return jsonify({"error": "A folder window is already open. Check your taskbar."}), 409
+    try:
+        path = _ask_for_folder(_last_download_dir())
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"Could not open the folder window: {exc}",
+                        "fallback": _last_download_dir()}), 500
+    finally:
+        FOLDER_PICKER_LOCK.release()
+
+    if not path:
+        return jsonify({"cancelled": True})
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as exc:
+        return jsonify({"error": f"Can't save to {path}: {exc}"}), 400
+
+    settings = _load_settings()
+    settings["download_dir"] = path
+    _save_settings(settings)
+
+    folder_id = uuid.uuid4().hex
+    with CHOSEN_FOLDERS_LOCK:
+        CHOSEN_FOLDERS[folder_id] = path
+    return jsonify({"folder_id": folder_id, "path": path})
 
 
 def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: str) -> None:
@@ -839,15 +952,25 @@ def api_extract():
     if audio_format not in ALLOWED_FORMATS:
         return jsonify({"error": f"Unsupported format: {audio_format}"}), 400
 
+    # The folder the user just picked in the dialog, or (if the dialog couldn't
+    # open) the one they used last time.
+    folder_id = payload.get("folder_id")
+    if folder_id:
+        with CHOSEN_FOLDERS_LOCK:
+            output_dir = CHOSEN_FOLDERS.pop(str(folder_id), None)
+        if output_dir is None:
+            return jsonify({"error": "That folder choice has expired. Click Extract again."}), 400
+    else:
+        output_dir = _last_download_dir()
+
     # Tracks picked from a playlist go into a subfolder named after it.
     playlist = payload.get("playlist")
-    output_dir = OUTPUT_DIR
     if isinstance(playlist, str) and playlist.strip():
-        output_dir = _playlist_folder(playlist.strip())
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-        except OSError as exc:
-            return jsonify({"error": f"Could not create playlist folder: {exc}"}), 500
+        output_dir = _playlist_folder(playlist.strip(), output_dir)
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+    except OSError as exc:
+        return jsonify({"error": f"Could not create folder {output_dir}: {exc}"}), 500
 
     job_id = uuid.uuid4().hex
     with JOBS_LOCK:
@@ -995,17 +1118,17 @@ def api_open_folder():
     """Open the output folder in the user's file manager.
 
     Optional payload {"job_id": ...} opens that job's folder (a playlist
-    subfolder); otherwise, or once the job has expired, OUTPUT_DIR. The client
-    never sends a path, so this can't be used to open arbitrary folders. The
-    endpoint is just a privileged shim because the browser can't open a local
-    file:// URL from an http:// origin.
+    subfolder); otherwise, or once the job has expired, the last folder the user
+    picked. The client never sends a path, so this can't be used to open
+    arbitrary folders. The endpoint is just a privileged shim because the
+    browser can't open a local file:// URL from an http:// origin.
     """
     payload = request.get_json(silent=True) or {}
-    folder = OUTPUT_DIR
+    folder = _last_download_dir()
     with JOBS_LOCK:
         job = JOBS.get(str(payload.get("job_id") or ""))
         if job is not None:
-            folder = job.get("output_dir") or OUTPUT_DIR
+            folder = job.get("output_dir") or folder
     if not os.path.isdir(folder):
         return jsonify({"error": "Output folder does not exist"}), 404
     try:

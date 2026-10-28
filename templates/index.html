@@ -502,6 +502,8 @@
     .queue-row.failed .queue-status { color: var(--danger); }
     .queue-row.have .queue-status { color: var(--text-dim); }
     .queue-row.queued .queue-status { color: var(--text-faint); }
+    .progress-dest { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--text-faint); overflow-wrap: anywhere; }
+    .progress-dest.partial { color: var(--danger); }
     .search-hint { margin: 10px 0 0; font-size: 12px; color: var(--text-faint); }
     .search-hint a { color: var(--accent); }
     .soundiiz-link { display: inline-block; vertical-align: middle; margin: 0 2px; line-height: 0; border-radius: 4px; }
@@ -538,7 +540,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v3.8</span>
+      <span class="tag">v3.9</span>
     </header>
 
     <!-- Search -->
@@ -1030,7 +1032,32 @@
         payload.playlist = state.searchMeta.title;
       }
 
+      // Ask where to save. The server opens a native folder window on this
+      // machine and hands back a one-time folder_id for the folder picked.
       els.extractBtn.disabled = true;
+      els.extractBtn.textContent = 'Choose a folder...';
+      let notice = '';
+      try {
+        const res = await fetch('/api/choose-folder', { method: 'POST' });
+        const pick = await res.json().catch(() => ({}));
+        if (pick.cancelled) {
+          updateExtractButton();
+          return;
+        }
+        if (res.ok) {
+          payload.folder_id = pick.folder_id;
+        } else if (pick.fallback) {
+          // The window couldn't open; save to the last-used folder instead.
+          notice = `${pick.error} Saving to the last-used folder instead.`;
+        } else {
+          throw new Error(pick.error || 'Could not choose a folder');
+        }
+      } catch (err) {
+        renderProgressError(err.message);
+        updateExtractButton();
+        return;
+      }
+
       els.extractBtn.textContent = 'Starting...';
       els.downloadSection.classList.add('hidden');
       els.downloadContainer.innerHTML = '';
@@ -1054,11 +1081,11 @@
       state.jobActive = true;
       updateExtractButton();
       state.outputDir = job.output_dir || '';
-      renderProgressInitial(selected.length);
+      renderProgressInitial(selected.length, state.outputDir, notice);
       streamJobStatus(job.job_id);
     }
 
-    function renderProgressInitial(total) {
+    function renderProgressInitial(total, outputDir, notice) {
       els.progressSection.classList.remove('hidden');
       els.progressContainer.innerHTML = `
         <div class="progress-panel">
@@ -1069,6 +1096,8 @@
             <span><span id="prog-counts">Completed 0 of ${total}</span><span class="queue-hint" id="prog-hint"> &middot; show queue &#9662;</span></span>
             <span id="prog-pct">0%</span>
           </div>
+          ${outputDir ? `<div class="progress-dest">Saving to ${escapeHtml(outputDir)}</div>` : ''}
+          ${notice ? `<div class="progress-dest partial">${escapeHtml(notice)}</div>` : ''}
           <div class="queue" id="prog-queue"></div><div class="progress-errors hidden" id="prog-errors"></div>
         </div>
       `;

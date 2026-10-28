@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.9.0] - 2026-10-28
+### Added
+- Choose where files are saved: clicking Extract Audio opens a native
+  folder window (in front of the browser) where you pick or create the
+  destination. Cancel backs out without downloading anything. The window
+  starts in the last folder you used, which is remembered in
+  `%APPDATA%\YT-Audio-Extractor\settings.json`.
+- The Progress panel shows which folder the batch is being saved to
+### Changed
+- Playlist subfolders are created inside the folder you pick
+- Open Folder falls back to the last folder you picked
+- The page never sends a folder path to the server: it gets a one-time
+  folder id for the folder picked in the window, so another website can't
+  use the local API to save files somewhere else
+- If the folder window can't open, the batch is saved to the last-used
+  folder and the Progress panel says so
+- The download history stays in `~/Downloads/YT-Audio`, whichever folder
+  you save to
+- Version bumped to v3.9 in index.html and installer.iss
+
 ## [3.8.0] - 2026-10-28
 ### Added
 - Playlist folders: tracks extracted from a pasted playlist link are saved

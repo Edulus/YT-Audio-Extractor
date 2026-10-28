@@ -99,14 +99,14 @@ Later launches skip the downloads and start in a couple of seconds.
 - 🔎 **Unified search bar** — paste a URL (single video or playlist) or type a search query
 - ▶ **In-browser audio preview** — small play button on each result streams the audio directly via a yt-dlp-resolved stream URL, so you can decide _before_ downloading
 - 📦 **Batch extraction** — select multiple tracks, watch each one's progress in real time via Server-Sent Events
-- :file_folder: **Whole playlists into their own folder**: paste a playlist link, click **Select All**, then **Extract**. The tracks are saved to a subfolder named after the playlist (for example `~/Downloads/YT-Audio/My Playlist/`), which maps neatly onto a Mixxx crate. Single videos and search results still go to the main folder.
+- :file_folder: **Whole playlists into their own folder**: paste a playlist link, click **Select All**, then **Extract**. The tracks are saved to a subfolder named after the playlist inside the folder you pick (for example `D:\Music\My Playlist\`), which maps neatly onto a Mixxx crate. Single videos and search results go straight into the folder you pick.
 - :twisted_rightwards_arrows: **Spotify, Apple Music, SoundCloud and other playlists via Soundiiz**: convert the playlist to a YouTube playlist with [Soundiiz](https://soundiiz.com) (the logo under the search bar links there), then paste the YouTube playlist link here.
 - :clipboard: **Expandable queue view**: click the Progress panel to see every track in the batch and its status (working, queued, done, already have, failed). You can keep searching while a batch runs.
 - :arrows_counterclockwise: **Self-updating engine**: the launcher updates yt-dlp (with its YouTube challenge solver) on every launch, and the app retries without cookies if YouTube rejects a signed-in request.
 - 🎵 **BEST, OPUS, MP3, FLAC, WAV**: BEST (the default) keeps YouTube's original audio stream with no re-encoding, the highest quality available. The other formats are converted from that stream.
 - :label: **Tags and cover art**: each file gets its title, artist, date, and source URL, plus the video thumbnail center-cropped to a square and embedded as artwork, so tracks look right in music players and DJ software like Mixxx. When YouTube lists no artist, a title like "Artist - Song" is split into artist and title; otherwise the channel name is used, minus " - Topic" or "VEVO". Works for BEST, OPUS, MP3, and FLAC; WAV gets tags but can't hold artwork.
-- :fast_forward: **Skips tracks you already have**: a track already in the output folder shows as "Already have" in the queue and isn't downloaded again. A download history (`download-history.txt` in the output folder) remembers every video you've fetched and in which format, so it's never downloaded twice in the same format, even after you rename or move the file. Having a track as MP3 doesn't stop you from getting it as FLAC. To download something again in the same format, delete its line from that file (lines look like `youtube <video id> mp3`), or delete the whole file.
-- 💾 **Direct-to-disk output** — files land in `~/Downloads/YT-Audio` and persist; no zip-and-download round trip through the browser
+- :fast_forward: **Skips tracks you already have**: a track already in the folder you're saving to shows as "Already have" in the queue and isn't downloaded again. A download history (`download-history.txt` in `~/Downloads/YT-Audio`, whichever folder you save to) remembers every video you've fetched and in which format, so it's never downloaded twice in the same format, even after you rename or move the file. Having a track as MP3 doesn't stop you from getting it as FLAC. To download something again in the same format, delete its line from that file (lines look like `youtube <video id> mp3`), or delete the whole file.
+- 💾 **You choose where files go**: clicking **Extract Audio** opens a standard folder window so you can pick (or create) the destination. It starts in the folder you used last time, so confirming the same place is one click. Files are written straight to disk, with no zip-and-download round trip through the browser. The first time, it starts in `~/Downloads/YT-Audio`.
 - 🍪 **Browser cookies passthrough** — no specific browser required: the app auto-detects whichever supported browser it can read cookies from (Chrome, Firefox, Edge, Brave, Opera, Chromium, or Vivaldi) and passes them to yt-dlp, so YouTube treats requests as authenticated. If your browser is running, cookie access may fail because the cookie database is locked — close it (or use a browser you don't keep open) and the app falls back to running without cookies if none are readable
 - ⏱ **Anti-bot pacing** — randomized 3-7 s pause between consecutive tracks, plus a 1 s interval between yt-dlp's internal requests during search
 - 🚀 **Near-one-click Windows launcher** — auto-cleans stale processes, downloads pinned ffmpeg + Deno into a local `bin/` (no PATH setup), installs Python deps on first run, opens the browser. Python is the only thing the user installs.
@@ -132,7 +132,7 @@ Server-Sent Events push state changes from the Python worker thread to the brows
 
 ![Download panel](docs/screenshots/download.png)
 
-Files persist in `~/Downloads/YT-Audio`. The Open Folder button uses an OS-level shim that raises File Explorer above the browser window.
+Files persist in the folder you picked. The Open Folder button uses an OS-level shim that raises File Explorer above the browser window.
 
 ### Launcher: environment checks + auto-cleanup
 
@@ -176,8 +176,8 @@ The auto-download script (fetch-binaries.ps1) is Windows-only. On macOS/Linux, i
 2. **Preview** — click the small ▶ next to any result to audition the audio.
 3. **Pick**: tick the videos you want. **Select All** grabs the whole list. For a whole playlist, paste its link in step 1 and click **Select All**; the tracks will be saved in a folder named after the playlist. Got a playlist on Spotify, Apple Music, SoundCloud or another service? Convert it to YouTube with [Soundiiz](https://soundiiz.com) first.
 4. **Choose format**: BEST (default, original audio with no re-encoding), OPUS, MP3, FLAC, or WAV.
-5. **Extract**: click **Extract Audio (N)**. The Progress panel shows the active track, a progress bar, and a per-track count. Between downloads the app pauses 3-7 s. Tracks you already have are skipped right away and marked "Already have".
-6. **Open Folder**: when the job finishes, click **Open Folder** to jump to `~/Downloads/YT-Audio` (or the playlist's subfolder) in File Explorer.
+5. **Extract**: click **Extract Audio (N)** and pick where to save the files in the folder window that opens (Cancel to back out). The Progress panel shows where they're going, the active track, a progress bar, and a per-track count. Between downloads the app pauses 3-7 s. Tracks you already have are skipped right away and marked "Already have".
+6. **Open Folder**: when the job finishes, click **Open Folder** to jump to the folder you picked (or the playlist's subfolder) in File Explorer.
 
 ---
 
@@ -192,6 +192,10 @@ The progress stream is one-way (server → browser) and the natural unit is a sm
 ### Why direct-to-disk instead of zip-and-download?
 
 The earlier design wrote files to a per-job temp dir, then served them as a zip through the browser when the user clicked Download. That's the standard web-app pattern, but it's a redundant round-trip for a _local_ app — the files were already on the user's disk; making them stream through Flask just to land in `~/Downloads` is silly. The current version writes straight to `~/Downloads/YT-Audio` and offers an **Open Folder** button that opens File Explorer at that path. No zip, no Content-Disposition dance, no temp cleanup.
+
+### How does a web page let you pick a local folder?
+
+It can't, on its own: browsers never reveal real local paths to a page. So when you click **Extract Audio**, the page asks the Python server, which opens a native folder window on your machine (Tk's dialog on Windows and Linux, AppleScript's `choose folder` on macOS). On Windows the server does the same Alt-tap trick as Open Folder (below) so the window appears in front of the browser. The page never sends a path back: the server returns a one-time `folder_id` that `/api/extract` exchanges for the folder you actually picked, so another website can't use the local API to save files somewhere else. The last folder is remembered in `%APPDATA%\YT-Audio-Extractor\settings.json` (`~/.config/YT-Audio-Extractor/settings.json` elsewhere).
 
 ### Why browser cookies passthrough, and how does it fall back?
 
