@@ -502,6 +502,12 @@
     .queue-row.failed .queue-status { color: var(--danger); }
     .queue-row.have .queue-status { color: var(--text-dim); }
     .queue-row.queued .queue-status { color: var(--text-faint); }
+    .queue-row.stopped .queue-status { color: var(--text-faint); }
+    .progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .progress-controls { display: flex; gap: 8px; }
+    .btn.small { padding: 5px 12px; font-size: 11px; }
+    .btn.stop:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+    .progress-state.paused { color: var(--text-dim); }
     .progress-dest { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--text-faint); overflow-wrap: anywhere; }
     .progress-dest.partial { color: var(--danger); }
     .search-hint { margin: 10px 0 0; font-size: 12px; color: var(--text-faint); }
@@ -540,7 +546,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v3.9</span>
+      <span class="tag">v4.0</span>
     </header>
 
     <!-- Search -->
@@ -1089,7 +1095,13 @@
       els.progressSection.classList.remove('hidden');
       els.progressContainer.innerHTML = `
         <div class="progress-panel">
-          <div class="progress-state" id="prog-state">Queued</div>
+          <div class="progress-head">
+            <div class="progress-state" id="prog-state">Queued</div>
+            <div class="progress-controls" id="prog-controls">
+              <button type="button" class="btn ghost small" id="prog-pause" data-action="pause">Pause</button>
+              <button type="button" class="btn ghost small stop" id="prog-stop">Stop</button>
+            </div>
+          </div>
           <div class="progress-title" id="prog-title">&nbsp;</div>
           <div class="bar"><div class="bar-fill" id="prog-fill"></div></div>
           <div class="progress-counts">
@@ -1101,6 +1113,32 @@
           <div class="queue" id="prog-queue"></div><div class="progress-errors hidden" id="prog-errors"></div>
         </div>
       `;
+      // stopPropagation: a click anywhere else in the panel toggles the queue.
+      const pauseBtn = document.getElementById('prog-pause');
+      pauseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sendJobControl(pauseBtn.dataset.action);
+      });
+      document.getElementById('prog-stop').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('Stop this batch? Tracks already saved are kept.')) sendJobControl('stop');
+      });
+    }
+
+    async function sendJobControl(action) {
+      if (!state.jobId) return;
+      try {
+        const res = await fetch(`/api/job/${encodeURIComponent(state.jobId)}/control`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        const data = await res.json().catch(() => ({}));
+        // Show the new state right away; the status stream confirms it.
+        if (res.ok) updateProgress(data);
+      } catch (_err) {
+        // The status stream will show whatever state the job really is in.
+      }
     }
 
     function renderProgressError(message) {
@@ -1130,10 +1168,25 @@
       const errorsEl  = document.getElementById('prog-errors');
       if (!stateEl) return;
 
-      const label = STATE_LABELS[payload.status] || payload.status;
+      const finished = payload.status === 'done' || payload.status === 'error';
+      let label = STATE_LABELS[payload.status] || payload.status;
+      if (finished && payload.stopped) label = 'Stopped';
+      else if (payload.stopping) label = 'Stopping...';
+      else if (payload.paused) label = 'Paused';
       stateEl.textContent = label;
-      stateEl.classList.toggle('done',  payload.status === 'done');
+      stateEl.classList.toggle('done',  payload.status === 'done' && !payload.stopped);
       stateEl.classList.toggle('error', payload.status === 'error');
+      stateEl.classList.toggle('paused', !finished && !!(payload.paused || payload.stopping));
+
+      const controls = document.getElementById('prog-controls');
+      if (controls) {
+        controls.classList.toggle('hidden', finished);
+        const pauseBtn = document.getElementById('prog-pause');
+        pauseBtn.textContent = payload.paused ? 'Resume' : 'Pause';
+        pauseBtn.dataset.action = payload.paused ? 'resume' : 'pause';
+        pauseBtn.disabled = !!payload.stopping;
+        document.getElementById('prog-stop').disabled = !!payload.stopping;
+      }
 
       titleEl.textContent = payload.current_title || ' ';
 
@@ -1155,7 +1208,7 @@
     }
 
     // ---- Expandable queue in the Progress panel ----
-    const QUEUE_LABELS = { queued: 'Queued', active: 'Working', done: 'Done', have: 'Already have', failed: 'Failed' };
+    const QUEUE_LABELS = { queued: 'Queued', active: 'Working', done: 'Done', have: 'Already have', failed: 'Failed', stopped: 'Stopped' };
     function renderQueue(items) {
       const q = document.getElementById('prog-queue');
       if (!q) return;
@@ -1230,6 +1283,13 @@
       const skipped    = payload.skipped || 0;
       const errorCount = (payload.errors || []).length;
       const outputDir  = state.outputDir || '';
+      const notDone    = (payload.items || []).filter(it => it.status === 'stopped').length;
+      const stoppedNote = payload.stopped
+        ? `<div class="sub">Stopped. ${notDone} track${notDone === 1 ? '' : 's'} not downloaded.</div>`
+        : '';
+      const errorNote = errorCount > 0
+        ? `<div class="sub partial">${errorCount} error${errorCount === 1 ? '' : 's'}: see Progress panel.</div>`
+        : '';
 
       els.downloadSection.classList.remove('hidden');
 
@@ -1237,8 +1297,9 @@
         els.downloadContainer.innerHTML = `
           <div class="download-panel">
             <div class="info">
-              <div>No files were produced.</div>
-              <div class="sub partial">${errorCount} error${errorCount === 1 ? '' : 's'} — see Progress panel.</div>
+              <div>${payload.stopped ? 'Stopped before any files were saved.' : 'No files were produced.'}</div>
+              ${stoppedNote}
+              ${errorNote}
             </div>
           </div>
         `;
@@ -1263,6 +1324,7 @@
             <div>${headline}</div>
             <div class="sub">${escapeHtml(outputDir)}</div>
             ${already}
+            ${stoppedNote}
             ${partial}
           </div>
           <button type="button" id="open-folder-btn" class="btn primary">Open Folder</button>

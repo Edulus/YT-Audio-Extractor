@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.0.0] - 2026-10-28
+### Added
+- Pause, Resume and Stop buttons in the Progress panel while a batch runs.
+  Pause takes effect immediately, even mid-download, and Resume continues
+  the same download. Stop cancels the current download, deletes its
+  partial files, and marks the rest of the queue "Stopped"; tracks
+  already saved are kept and recorded in the history as usual. Stop asks
+  for confirmation first.
+- The finished-batch summary says how many tracks were not downloaded
+  after a stop
+### Changed
+- The 3-7 s pause between downloads also honours Pause and Stop
+- The ffmpeg conversion step can't be interrupted, so a Pause or Stop
+  clicked during it takes effect as soon as it finishes
+- Version bumped to v4.0 in index.html and installer.iss (the +0.1 rule
+  rolls 3.9 over to 4.0)
+
 ## [3.9.0] - 2026-10-28
 ### Added
 - Choose where files are saved: clicking Extract Audio opens a native

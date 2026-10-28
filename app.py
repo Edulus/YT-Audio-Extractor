@@ -19,7 +19,7 @@ from flask import Flask, Response, jsonify, render_template, request, send_from_
 import yt_dlp
 from yt_dlp.extractor import get_info_extractor
 from yt_dlp.postprocessor import FFmpegPostProcessor, PostProcessor
-from yt_dlp.utils import DownloadError
+from yt_dlp.utils import DownloadCancelled, DownloadError
 
 
 app = Flask(__name__)
@@ -501,7 +501,59 @@ def _job_snapshot(job: dict) -> dict:
         "current_title": job.get("current_title", ""),
         "errors": list(job.get("errors", [])),
         "items": [dict(i) for i in job.get("items", [])],
+        "paused": job.get("pause_requested", False),
+        "stopping": job.get("stop_requested", False),
+        "stopped": job.get("stopped", False),
     }
+
+
+class _StopRequested(DownloadCancelled):
+    """Raised inside the worker (even from yt-dlp's progress hook) to abort."""
+    msg = "Stopped by user"
+
+
+def _check_control(job_id: str) -> None:
+    """Block while the job is paused; raise _StopRequested once it's stopped.
+
+    Called between tracks, during the pause between downloads, and from the
+    progress hook, so a pause or stop takes effect mid-download too. Blocking
+    in the hook just holds the connection; yt-dlp resumes (or reconnects with
+    a Range request) once it returns. ffmpeg conversion can't be interrupted,
+    so a pause or stop during conversion lands right after it.
+    """
+    while True:
+        with JOBS_LOCK:
+            job = JOBS.get(job_id)
+            if job is None or job.get("stop_requested"):
+                raise _StopRequested()
+            if not job.get("pause_requested"):
+                return
+        time.sleep(0.25)
+
+
+def _sleep_with_control(job_id: str, seconds: float) -> None:
+    """time.sleep() that still honours pause and stop."""
+    end = time.time() + seconds
+    while True:
+        _check_control(job_id)
+        remaining = end - time.time()
+        if remaining <= 0:
+            return
+        time.sleep(min(0.25, remaining))
+
+
+def _remove_partial_files(partial_path: str | None) -> None:
+    """Delete what a cancelled download leaves behind: the .part file, yt-dlp's
+    .ytdl resume file, and the not-yet-embedded thumbnail."""
+    if not partial_path:
+        return
+    base = partial_path[:-5] if partial_path.endswith(".part") else partial_path
+    stem = os.path.splitext(base)[0]
+    for path in (partial_path, base + ".ytdl", *(f"{stem}.{e}" for e in ("webp", "jpg", "png"))):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 def _update_job(job_id: str, **fields) -> None:
@@ -763,7 +815,13 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
     in output_dir, or in the (shared) download history, are skipped.
     """
 
+    # The current download's temp file, so a stop can clean it up.
+    partial = {"path": None}
+
     def progress_hook(d):
+        if d.get("status") == "downloading":
+            partial["path"] = d.get("tmpfilename") or partial["path"]
+            _check_control(job_id)  # outside JOBS_LOCK: it may block or raise
         with JOBS_LOCK:
             job = JOBS.get(job_id)
             if job is None:
@@ -862,12 +920,17 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
             # Between consecutive downloads, pause for a randomized 3-7 seconds.
             # Never before the first one, and never for tracks we skip.
             if hit_youtube:
-                time.sleep(random.uniform(*INTER_TRACK_SLEEP_RANGE))
+                _sleep_with_control(job_id, random.uniform(*INTER_TRACK_SLEEP_RANGE))
             hit_youtube = True
             ydl.download([url])
             return True
 
     for i, video in enumerate(videos):
+        try:
+            _check_control(job_id)  # waits here while paused between tracks
+        except _StopRequested:
+            break
+
         url = video.get("url") or (
             f"https://www.youtube.com/watch?v={video['id']}" if video.get("id") else None
         )
@@ -886,6 +949,7 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
         with JOBS_LOCK:
             files_before = len(JOBS[job_id]["files"])
             errors_before = len(JOBS[job_id]["errors"])
+        partial["path"] = None
 
         try:
             try:
@@ -904,6 +968,10 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
                         job["skipped"] += 1
                         job["items"][i]["status"] = "have"
                 continue
+        except _StopRequested:
+            # Cancelled mid-download: not a failure, just unfinished.
+            _remove_partial_files(partial["path"])
+            break
         except DownloadError as exc:
             with JOBS_LOCK:
                 JOBS[job_id]["errors"].append(
@@ -932,6 +1000,12 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
     with JOBS_LOCK:
         job = JOBS.get(job_id)
         if job is not None:
+            if job.get("stop_requested"):
+                job["stopped"] = True
+                for item in job["items"]:
+                    if item["status"] in ("queued", "active"):
+                        item["status"] = "stopped"
+            job["stop_requested"] = job["pause_requested"] = False
             job["status"] = "done"
             job["finished_at"] = time.time()
             # Final bar reflects how much actually succeeded, not "100%" on failure.
@@ -979,6 +1053,9 @@ def api_extract():
             "total": len(videos),
             "completed": 0,
             "skipped": 0,
+            "pause_requested": False,
+            "stop_requested": False,
+            "stopped": False,
             "current_progress": 0.0,
             "current_title": "",
             "files": [],
@@ -998,6 +1075,28 @@ def api_extract():
     thread.start()
 
     return jsonify({"job_id": job_id, "total": len(videos), "output_dir": output_dir})
+
+
+@app.post("/api/job/<job_id>/control")
+def api_job_control(job_id: str):
+    """Pause, resume or stop a running batch: {"action": "pause"|"resume"|"stop"}."""
+    action = (request.get_json(silent=True) or {}).get("action")
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if job is None:
+            return jsonify({"error": "Job not found"}), 404
+        if job["status"] in ("done", "error"):
+            return jsonify({"error": "This batch has already finished"}), 409
+        if action == "pause":
+            job["pause_requested"] = True
+        elif action == "resume":
+            job["pause_requested"] = False
+        elif action == "stop":
+            job["stop_requested"] = True
+            job["pause_requested"] = False  # a paused worker wakes up and exits
+        else:
+            return jsonify({"error": f"Unknown action: {action}"}), 400
+        return jsonify(_job_snapshot(job))
 
 
 @app.get("/api/status/<job_id>")
