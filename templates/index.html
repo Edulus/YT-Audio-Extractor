@@ -502,6 +502,8 @@
     .queue-row.failed .queue-status { color: var(--danger); }
     .queue-row.have .queue-status { color: var(--text-dim); }
     .queue-row.queued .queue-status { color: var(--text-faint); }
+    .search-hint { margin: 10px 0 0; font-size: 12px; color: var(--text-faint); }
+    .search-hint a { color: var(--accent); }
     /* ---- Animations ---- */
     @keyframes fade-in {
       from { opacity: 0; transform: translateY(2px); }
@@ -532,7 +534,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v3.7</span>
+      <span class="tag">v3.8</span>
     </header>
 
     <!-- Search -->
@@ -543,12 +545,17 @@
           id="search-input"
           class="search-input"
           type="text"
-          placeholder="Search YouTube or paste a URL..."
+          placeholder="Search YouTube or paste a video or playlist URL..."
           autocomplete="off"
           spellcheck="false"
         />
         <button type="button" id="search-btn" class="btn primary">Search</button>
       </div>
+      <p class="search-hint">
+        Have a Spotify or Apple Music playlist? Convert it to YouTube with
+        <a href="https://soundiiz.com" target="_blank" rel="noopener noreferrer">Soundiiz</a>,
+        then paste the YouTube playlist link here.
+      </p>
       <div id="search-status"></div>
     </section>
 
@@ -1008,6 +1015,10 @@
         videos: selected.map(r => ({ id: r.id, url: r.url, title: r.title })),
         format: state.format,
       };
+      // Tracks from a playlist are saved into a subfolder named after it.
+      if (state.searchMeta && state.searchMeta.type === 'playlist') {
+        payload.playlist = state.searchMeta.title;
+      }
 
       els.extractBtn.disabled = true;
       els.extractBtn.textContent = 'Starting...';
@@ -1220,7 +1231,11 @@
       `;
       document.getElementById('open-folder-btn').addEventListener('click', async () => {
         try {
-          const res = await fetch('/api/open-folder', { method: 'POST' });
+          const res = await fetch('/api/open-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: jobId }),
+          });
           if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             alert(data.error || 'Could not open folder.');

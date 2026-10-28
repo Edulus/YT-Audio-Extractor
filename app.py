@@ -552,7 +552,7 @@ def _add_to_history(key: str) -> None:
 
 
 def _already_have(ydl, video: dict, key: str | None, audio_format: str) -> bool:
-    """True if this video+format is in the history or already in OUTPUT_DIR.
+    """True if this video+format is in the history or already in the job's folder.
 
     A file found on disk but missing from the history (e.g. downloaded before
     v3.7) is added to the history, so renaming it later won't cause a re-fetch.
@@ -629,9 +629,26 @@ class SquareCoverPP(FFmpegPostProcessor):
 PRE_DOWNLOAD_PPS = {"ThumbnailsConvertor", "SquareCover", "MusicTags"}
 
 
-def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
-    """Worker thread: download and convert each requested video."""
-    # All jobs share OUTPUT_DIR (flat). Tracks already there are skipped.
+_WINDOWS_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
+                           *(f"LPT{i}" for i in range(1, 10))}
+
+
+def _playlist_folder(name: str) -> str:
+    """OUTPUT_DIR/<playlist name>, with the name made safe as a folder name."""
+    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)[:100].strip(" .")
+    if not safe:
+        safe = "Playlist"
+    if safe.upper() in _WINDOWS_RESERVED_NAMES:
+        safe += "_"
+    return os.path.join(OUTPUT_DIR, safe)
+
+
+def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: str) -> None:
+    """Worker thread: download and convert each requested video into output_dir.
+
+    output_dir is OUTPUT_DIR, or a playlist's subfolder of it. Tracks already
+    in output_dir, or in the (shared) download history, are skipped.
+    """
 
     def progress_hook(d):
         with JOBS_LOCK:
@@ -705,7 +722,8 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str) -> None:
         return _with_ffmpeg(_maybe_with_cookies({
             "format": "bestaudio/best",
             "postprocessors": postprocessors,
-            "outtmpl": os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s"),
+            # '%' in a folder name would be read as a template field; escape it.
+            "outtmpl": os.path.join(output_dir.replace("%", "%%"), "%(title)s.%(ext)s"),
             "quiet": True,
             "no_warnings": True,
             "noprogress": True,  # suppress yt-dlp's stdout progress bar; we use progress_hook
@@ -821,6 +839,16 @@ def api_extract():
     if audio_format not in ALLOWED_FORMATS:
         return jsonify({"error": f"Unsupported format: {audio_format}"}), 400
 
+    # Tracks picked from a playlist go into a subfolder named after it.
+    playlist = payload.get("playlist")
+    output_dir = OUTPUT_DIR
+    if isinstance(playlist, str) and playlist.strip():
+        output_dir = _playlist_folder(playlist.strip())
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except OSError as exc:
+            return jsonify({"error": f"Could not create playlist folder: {exc}"}), 500
+
     job_id = uuid.uuid4().hex
     with JOBS_LOCK:
         JOBS[job_id] = {
@@ -834,18 +862,19 @@ def api_extract():
             "errors": [],
             "items": [{"title": v.get("title") or v.get("url") or "(untitled)", "status": "queued"} for v in videos],
             "format": audio_format,
+            "output_dir": output_dir,
             "created_at": time.time(),
         }
 
     thread = threading.Thread(
         target=_run_extract_job,
-        args=(job_id, videos, audio_format),
+        args=(job_id, videos, audio_format, output_dir),
         daemon=True,
         name=f"extract-{job_id[:8]}",
     )
     thread.start()
 
-    return jsonify({"job_id": job_id, "total": len(videos), "output_dir": OUTPUT_DIR})
+    return jsonify({"job_id": job_id, "total": len(videos), "output_dir": output_dir})
 
 
 @app.get("/api/status/<job_id>")
@@ -965,17 +994,25 @@ def _open_in_file_manager(path: str) -> None:
 def api_open_folder():
     """Open the output folder in the user's file manager.
 
-    No payload required — this app has exactly one output folder. The endpoint
-    is just a privileged shim because the browser can't open a local file:// URL
-    from an http:// origin.
+    Optional payload {"job_id": ...} opens that job's folder (a playlist
+    subfolder); otherwise, or once the job has expired, OUTPUT_DIR. The client
+    never sends a path, so this can't be used to open arbitrary folders. The
+    endpoint is just a privileged shim because the browser can't open a local
+    file:// URL from an http:// origin.
     """
-    if not os.path.isdir(OUTPUT_DIR):
+    payload = request.get_json(silent=True) or {}
+    folder = OUTPUT_DIR
+    with JOBS_LOCK:
+        job = JOBS.get(str(payload.get("job_id") or ""))
+        if job is not None:
+            folder = job.get("output_dir") or OUTPUT_DIR
+    if not os.path.isdir(folder):
         return jsonify({"error": "Output folder does not exist"}), 404
     try:
-        _open_in_file_manager(OUTPUT_DIR)
+        _open_in_file_manager(folder)
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": f"Could not open folder: {exc}"}), 500
-    return jsonify({"opened": OUTPUT_DIR})
+    return jsonify({"opened": folder})
 
 
 # ---------------------------------------------------------------------------

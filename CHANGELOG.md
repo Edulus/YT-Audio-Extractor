@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.8.0] - 2026-10-28
+### Added
+- Playlist folders: tracks extracted from a pasted playlist link are saved
+  to a subfolder named after the playlist, e.g.
+  `~/Downloads/YT-Audio/My Playlist/`. Single videos and search results
+  still go to the main folder. Characters Windows doesn't allow in folder
+  names are replaced with `_`.
+- Link to Soundiiz under the search bar, for converting Spotify or Apple
+  Music playlists to YouTube playlists that can be pasted here
+### Changed
+- Open Folder opens the playlist's subfolder after a playlist batch
+- The search placeholder mentions playlist URLs
+- The download history stays shared across all folders: a track you
+  already have in one folder shows as "Already have" in a playlist batch
+  and isn't downloaded again into that playlist's folder
+- Version bumped to v3.8 in index.html and installer.iss
+
 ## [3.7.0] - 2026-10-19
 ### Changed
 - The download history is now per video and format: having a track as MP3
