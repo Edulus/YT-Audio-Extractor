@@ -18,7 +18,19 @@ All notable changes to this project will be documented in this file.
   for confirmation first.
 - The finished-batch summary says how many tracks were not downloaded
   after a stop
+- Tracks you renamed are recognized as "Already have": at the start of a
+  batch the app reads the source URL tag of each file of that format in
+  the target folder, so a match is found under any filename, even without
+  the download history. Works for MP3, M4A, Opus, FLAC and WAV files made
+  since v3.6.
+- A last check just before each download uses the video's real title from
+  YouTube, so a track already in the folder is skipped even when the
+  search result's title differed. Nothing in the target folder is ever
+  overwritten or downloaded again.
 ### Changed
+- A same-name file that its tag shows came from a different video is
+  still skipped (saving would overwrite it), but that video is no longer
+  recorded in the download history as downloaded
 - The 3-7 s pause between downloads also honours Pause and Stop
 - The ffmpeg conversion step can't be interrupted, so a Pause or Stop
   clicked during it takes effect as soon as it finishes

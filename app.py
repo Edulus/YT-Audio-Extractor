@@ -7,6 +7,7 @@ import platform
 import random
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -603,25 +604,180 @@ def _add_to_history(key: str) -> None:
         f.write(key + "\n")
 
 
-def _already_have(ydl, video: dict, key: str | None, audio_format: str) -> bool:
+# ---------------------------------------------------------------------------
+# Recognizing tracks already in the target folder
+# ---------------------------------------------------------------------------
+# Since v3.6 every file carries its source URL in a tag (FFmpegMetadata writes
+# webpage_url as 'purl'/'comment'). Reading that back lets us recognize a
+# track the user renamed. Only these fields are read, and only an exact
+# watch-page URL counts: the embedded description often links other videos.
+
+_SOURCE_URL_RE = re.compile(r"https?://(?:www\.|music\.)?youtube\.com/watch\?v=([A-Za-z0-9_-]{11})")
+# ID3 (mp3), Vorbis comments (opus/ogg/flac), MP4 (m4a). WAV is read separately.
+_SOURCE_TAG_KEYS = ("TXXX:purl", "TXXX:comment", "purl", "comment", "\xa9cmt")
+
+
+def _match_source_url(text) -> str | None:
+    m = _SOURCE_URL_RE.fullmatch(str(text).strip())
+    return m.group(1) if m else None
+
+
+def _wav_source_video_id(path: str) -> str | None:
+    """Read the ICMT comment from a WAV's RIFF LIST/INFO chunk (mutagen can't)."""
+    with open(path, "rb") as f:
+        head = f.read(12)
+        if len(head) < 12 or head[:4] != b"RIFF" or head[8:12] != b"WAVE":
+            return None
+        while True:
+            header = f.read(8)
+            if len(header) < 8:
+                return None
+            chunk_id, size = header[:4], struct.unpack("<I", header[4:])[0]
+            if chunk_id != b"LIST":
+                f.seek(size + (size & 1), 1)  # chunks are padded to even sizes
+                continue
+            data = f.read(size)
+            if size & 1:
+                f.seek(1, 1)
+            if data[:4] != b"INFO":
+                continue
+            pos = 4
+            while pos + 8 <= len(data):
+                sub_id, sub_size = data[pos:pos + 4], struct.unpack("<I", data[pos + 4:pos + 8])[0]
+                if sub_id == b"ICMT":
+                    text = data[pos + 8:pos + 8 + sub_size].rstrip(b"\0")
+                    return _match_source_url(text.decode("utf-8", "replace"))
+                pos += 8 + sub_size + (sub_size & 1)
+
+
+def _source_video_id(path: str) -> str | None:
+    """The YouTube video id tagged into a file by this app (v3.6+), or None."""
+    try:
+        if path.lower().endswith(".wav"):
+            return _wav_source_video_id(path)
+        import mutagen  # installed with yt-dlp[default]
+        tags = getattr(mutagen.File(path), "tags", None)
+        if not tags:
+            return None
+        for key in _SOURCE_TAG_KEYS:
+            try:
+                value = tags.get(key)
+            except (KeyError, ValueError):  # Vorbis comments reject some key names
+                continue
+            if not value:
+                continue
+            texts = getattr(value, "text", value)
+            for text in texts if isinstance(texts, list) else [texts]:
+                video_id = _match_source_url(text)
+                if video_id:
+                    return video_id
+    except Exception:  # noqa: BLE001  (unreadable or not really audio: no id)
+        return None
+    return None
+
+
+def _format_exts(audio_format: str) -> set:
+    """File extensions that count as 'this format' for the already-have check."""
+    return BEST_AUDIO_EXTS if audio_format == "best" else {audio_format}
+
+
+def _tagged_ids_in(folder: str, exts: set) -> set:
+    """Video ids of the files of these formats in folder, read from their tags."""
+    ids = set()
+    try:
+        entries = list(os.scandir(folder))
+    except OSError:
+        return ids
+    for entry in entries:
+        if entry.is_file() and os.path.splitext(entry.name)[1].lower().lstrip(".") in exts:
+            video_id = _source_video_id(entry.path)
+            if video_id:
+                ids.add(video_id)
+    return ids
+
+
+def _existing_file_for(ydl, info: dict, exts: set) -> str | None:
+    """A file in the target folder that this video would be saved over, if any."""
+    for ext in exts:
+        path = ydl.prepare_filename({**info, "ext": ext})
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _same_name_is_ours(path: str, video_id: str | None) -> bool:
+    """Should a same-name file be recorded in the history as this video?
+
+    Yes unless its tag proves it came from a different video (then we still
+    skip, because saving would overwrite it, but don't record this video).
+    """
+    existing = _source_video_id(path)
+    return existing is None or existing == video_id
+
+
+def _already_have(ydl, video: dict, key: str | None, audio_format: str,
+                  video_id: str | None, folder_ids: set) -> bool:
     """True if this video+format is in the history or already in the job's folder.
 
-    A file found on disk but missing from the history (e.g. downloaded before
-    v3.7) is added to the history, so renaming it later won't cause a re-fetch.
+    Checks, cheapest first: the download history; a file in the folder whose
+    tag says it is this video (catches renamed files); a file with the name
+    this video would be saved under. Uses the search-result title, so it costs
+    no request to YouTube. ExistingFileGuardPP repeats the name check with
+    the real title just before downloading.
+
+    A file found in the folder but missing from the history (e.g. downloaded
+    before v3.7) is added to the history, so renaming it later won't cause a
+    re-fetch.
     """
     if key and _in_history(key):
+        return True
+    if video_id and video_id in folder_ids:
+        if key:
+            _add_to_history(key)
         return True
 
     title = video.get("title")
     if not title:
         return False
-    exts = BEST_AUDIO_EXTS if audio_format == "best" else {audio_format}
-    for ext in exts:
-        if os.path.isfile(ydl.prepare_filename({"title": title, "ext": ext})):
-            if key:
-                _add_to_history(key)
-            return True
+    path = _existing_file_for(ydl, {"title": title}, _format_exts(audio_format))
+    if path:
+        if key and _same_name_is_ours(path, video_id):
+            _add_to_history(key)
+        return True
     return False
+
+
+class _AlreadyHave(DownloadCancelled):
+    """Raised by ExistingFileGuardPP to skip a track before it downloads."""
+    msg = "Already in the target folder"
+
+    def __init__(self, record: bool):
+        super().__init__()
+        self.record = record  # add to the history?
+
+
+class ExistingFileGuardPP(PostProcessor):
+    """Last check before downloading, with the real id and title from YouTube.
+
+    _already_have() works from search results; if the real title differs
+    (or the search gave none), this catches the existing file anyway, so a
+    file in the target folder is never downloaded again or overwritten.
+    Runs at pre_process, before the audio or thumbnail is fetched.
+    """
+
+    def __init__(self, downloader, exts: set, folder_ids: set):
+        super().__init__(downloader)
+        self._exts = exts
+        self._folder_ids = folder_ids
+
+    def run(self, info):
+        video_id = info.get("id")
+        if video_id and video_id in self._folder_ids:
+            raise _AlreadyHave(record=True)
+        path = _existing_file_for(self._downloader, info, self._exts)
+        if path:
+            raise _AlreadyHave(record=_same_name_is_ours(path, video_id))
+        return [], info
 
 
 def _split_artist_title(title: str) -> tuple[str, str] | None:
@@ -678,7 +834,7 @@ class SquareCoverPP(FFmpegPostProcessor):
 
 # Postprocessors that run before the download, while _filename still points at
 # the source stream. Their hook calls say nothing about the final audio file.
-PRE_DOWNLOAD_PPS = {"ThumbnailsConvertor", "SquareCover", "MusicTags"}
+PRE_DOWNLOAD_PPS = {"ThumbnailsConvertor", "SquareCover", "MusicTags", "ExistingFileGuard"}
 
 
 _WINDOWS_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
@@ -905,15 +1061,23 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
         }))
 
     hit_youtube = False
+    exts = _format_exts(audio_format)
+    # Read once per batch: ids of the tracks (of this format) already in the
+    # target folder, from their tags, so renamed files are recognized too.
+    folder_ids = _tagged_ids_in(output_dir, exts)
 
-    def download(url: str, video: dict, key: str | None) -> bool:
-        """Download one track. Returns False if it was skipped as already had."""
+    def download(url: str, video: dict, key: str | None, video_id: str | None) -> bool:
+        """Download one track. Returns False if it was skipped as already had.
+
+        May also raise _AlreadyHave from ExistingFileGuardPP.
+        """
         nonlocal hit_youtube
         with yt_dlp.YoutubeDL(build_opts()) as ydl:
-            if _already_have(ydl, video, key, audio_format):
+            if _already_have(ydl, video, key, audio_format, video_id, folder_ids):
                 return False
             # Added here rather than in opts: yt-dlp only builds its own
             # postprocessors from opts. Each lands at the end of its stage.
+            ydl.add_post_processor(ExistingFileGuardPP(ydl, exts, folder_ids), when="pre_process")
             ydl.add_post_processor(MusicTagsPP(ydl), when="pre_process")
             if embed_artwork:
                 ydl.add_post_processor(SquareCoverPP(ydl), when="before_dl")
@@ -950,24 +1114,23 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
             files_before = len(JOBS[job_id]["files"])
             errors_before = len(JOBS[job_id]["errors"])
         partial["path"] = None
+        fetched = True  # False once we learn the track is already in the folder
 
         try:
             try:
-                fetched = download(url, video, key)
+                fetched = download(url, video, key, video_id)
             except DownloadError as exc:
                 # YouTube sometimes rejects signed-in requests outright. Retry
                 # once without cookies (and stay cookie-free for the session).
                 if _is_reload_error(str(exc)) and _disable_cookies("download"):
-                    fetched = download(url, video, key)
+                    fetched = download(url, video, key, video_id)
                 else:
                     raise
-            if not fetched:
-                with JOBS_LOCK:
-                    job = JOBS.get(job_id)
-                    if job is not None:
-                        job["skipped"] += 1
-                        job["items"][i]["status"] = "have"
-                continue
+        except _AlreadyHave as have:
+            # Caught by the last check, with the real title: nothing fetched.
+            if have.record and key:
+                _add_to_history(key)
+            fetched = False
         except _StopRequested:
             # Cancelled mid-download: not a failure, just unfinished.
             _remove_partial_files(partial["path"])
@@ -981,6 +1144,14 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
             with JOBS_LOCK:
                 JOBS[job_id]["errors"].append(f"{video.get('title') or url}: {exc}")
 
+        if not fetched:
+            with JOBS_LOCK:
+                job = JOBS.get(job_id)
+                if job is not None:
+                    job["skipped"] += 1
+                    job["items"][i]["status"] = "have"
+            continue
+
         # ignoreerrors=True swallows failures inside yt-dlp; detect success by whether
         # the postprocessor produced a new file for this video.
         with JOBS_LOCK:
@@ -992,6 +1163,8 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
                 job["items"][i]["status"] = "done"
                 if key:
                     _add_to_history(key)
+                if video_id:
+                    folder_ids.add(video_id)
             elif len(job["errors"]) == errors_before:
                 job["errors"].append(f"{video.get('title') or url}: extraction failed")
             if job["items"][i]["status"] != "done":
