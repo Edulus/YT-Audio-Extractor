@@ -37,60 +37,48 @@ This app is a GUI front-end built on top of **[yt-dlp](https://github.com/yt-dlp
 
 ## Quick Setup (Windows)
 
-> **No technical experience needed.** Install Python, then double-click the launcher. That's it — ffmpeg and the JavaScript runtime are downloaded automatically on first launch. No PATH editing.
+> **No technical experience needed, and nothing to install first.** The app brings its own private copy of Python, ffmpeg and Deno, downloaded into its own folder on first launch. No PATH editing, no admin rights.
 
----
+### Option 1: Installer (recommended)
 
-### Step 1 — Install Python (the only thing you install yourself)
+1. **[⬇ Download `YT-Audio-Extractor-Setup-<version>.exe`](../../releases/latest)** from the latest release (under **Assets**).
+2. **Run it.** Because the installer isn't code-signed, Windows may say *"Windows protected your PC"*: click **More info**, then **Run anyway**. Before installing, it shows a page explaining exactly what it will do on your PC. It installs into your own user profile and needs no administrator rights.
+3. **Open YT Audio Extractor** from the Start menu or the desktop shortcut.
 
-Python is the language this app is built in. You need version **3.10 or newer**.
+### Option 2: Download the zip
 
-**[⬇ Download Python from python.org](https://www.python.org/downloads/)**
+1. **[⬇ Download this project](../../archive/refs/heads/master.zip)** and unzip it to a folder of your choice.
+2. Open that folder and **double-click `YT-Audio-Extractor.bat`**.
 
-> ⚠️ **Important:** During installation, check the box that says **"Add Python to PATH"** before clicking Install. If you miss this, the app won't start.
+### What the first launch does
 
-<details>
-<summary>How do I know if Python is already installed?</summary>
+A console window opens and says what it is doing at each step:
 
-Open a Command Prompt (press `Win + R`, type `cmd`, press Enter) and run:
+1. Stops any earlier copy of the app that is still running.
+2. **Downloads three helper programs into the app's `bin\` folder** (about 160 MB, once), each checked against a pinned SHA-256 fingerprint:
+   - **Python 3.14**, a private copy used only by this app, separate from any Python already on your PC
+   - **ffmpeg**, which converts audio and writes the tags and cover art
+   - **Deno**, which solves YouTube's JavaScript challenges
+3. Installs Flask and yt-dlp into that private Python.
+4. Checks for a newer yt-dlp (this runs on every launch, because YouTube changes often).
+5. Opens the app at **http://localhost:5000** in your browser.
 
-```
-python --version
-```
+Later launches skip the downloads and start in a few seconds. Keep the console window open while you use the app; closing it stops the app.
 
-If you see `Python 3.10.x` or higher, you're good. If you see an error, install it using the link above.
-
-</details>
-
----
-
-### Step 2 — Download and launch the app
-
-1. **[⬇ Download this project](../../archive/refs/heads/master.zip)** and unzip it to a folder of your choice (e.g. `C:\Apps\YT-Audio-Extractor`)
-2. Open that folder and **double-click `YT-Audio-Extractor.bat`**
-
-On first launch the launcher automatically:
-
-- Verifies Python ≥ 3.10
-- **Downloads ffmpeg and the Deno JavaScript runtime into a local `bin\` folder** (a one-time ~145 MB download — no install, no PATH changes)
-- Installs the required Python packages
-- Opens the app at **http://localhost:5000** in your browser
-
-Later launches skip the downloads and start in a couple of seconds.
-
-> 💡 For a permanent desktop shortcut with the app's icon, right-click `YT-Audio-Extractor.bat` → **Create shortcut**, then right-click the shortcut → **Properties → Change Icon** and point it at `YT-Audio-Extractor.ico` in the same folder. (Or use the optional [Inno Setup installer](installer.iss), which creates the shortcuts for you — see [SETUP.md](SETUP.md).)
+Nothing is installed system-wide. Besides your audio files, the app writes only two small files: your last-used folder (`%APPDATA%\YT-Audio-Extractor\settings.json`) and a download history (`Downloads\YT-Audio\download-history.txt`). Uninstalling removes the app and everything it downloaded; with the zip, deleting the folder does the same.
 
 ---
 
 ### Troubleshooting first-launch issues
 
-| What the launcher says                               | What to do                                                                                                               |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `[X] Python is not installed or not on PATH`         | Reinstall Python and make sure **"Add to PATH"** is checked                                                              |
-| `[X] Failed to download/verify the bundled binaries` | Check your internet connection and re-run the launcher. It re-downloads any missing binary from scratch on the next run. |
-| App opens but downloads fail with errors             | Cookie access can fail while your browser is running and holds a lock on its cookie database. Fully quit your browser (including background processes) and relaunch the app |
+| What the launcher says                                     | What to do                                                                                                                  |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `[X] A helper program could not be downloaded...`          | Check your internet connection and run the app again. Anything already downloaded is kept; only the missing part is retried. |
+| `[X] ... SHA-256 CHECKSUM MISMATCH`                        | The download was corrupted or tampered with, so it is refused. Delete the `bin\` folder and run the app again.               |
+| `[X] Package install failed`                               | Check your internet connection (it downloads from pypi.org) and run the app again.                                          |
+| App opens but downloads fail with errors                   | Cookie access can fail while your browser is running and holds a lock on its cookie database. Fully quit your browser (including background processes) and relaunch the app |
 
-> **Maintainers:** the bundled binary versions and SHA-256 checksums are pinned in [`fetch-binaries.ps1`](fetch-binaries.ps1) and verified on every download; see [SETUP.md](SETUP.md) for how to bump them.
+> **Maintainers:** the pinned versions and SHA-256 checksums of Python, ffmpeg and Deno are in [`fetch-binaries.ps1`](fetch-binaries.ps1) and verified on every download; see [SETUP.md](SETUP.md) for how to bump them and how the installer is built.
 
 ---
 
@@ -110,7 +98,7 @@ Later launches skip the downloads and start in a couple of seconds.
 - 💾 **You choose where files go**: clicking **Extract Audio** opens a standard folder window so you can pick (or create) the destination. It starts in the folder you used last time, so confirming the same place is one click. Files are written straight to disk, with no zip-and-download round trip through the browser. The first time, it starts in `~/Downloads/YT-Audio`.
 - 🍪 **Browser cookies passthrough** — no specific browser required: the app auto-detects whichever supported browser it can read cookies from (Chrome, Firefox, Edge, Brave, Opera, Chromium, or Vivaldi) and passes them to yt-dlp, so YouTube treats requests as authenticated. If your browser is running, cookie access may fail because the cookie database is locked — close it (or use a browser you don't keep open) and the app falls back to running without cookies if none are readable
 - ⏱ **Anti-bot pacing** — randomized 3-7 s pause between consecutive tracks, plus a 1 s interval between yt-dlp's internal requests during search
-- 🚀 **Near-one-click Windows launcher** — auto-cleans stale processes, downloads pinned ffmpeg + Deno into a local `bin/` (no PATH setup), installs Python deps on first run, opens the browser. Python is the only thing the user installs.
+- 🚀 **One-click Windows setup**: a small per-user installer (or the zip), and a launcher that downloads a private Python, ffmpeg and Deno into a local `bin/` on first run, installs the Python packages, and opens the browser. Nothing to install first, no PATH setup, no admin rights, and every step is explained in the console window.
 - 📁 **Open Folder that actually focuses** — uses a Win32 Alt-tap trick to bypass Windows' focus-stealing prevention, so the new Explorer window jumps in front of the browser
 
 ---
@@ -196,7 +184,7 @@ The earlier design wrote files to a per-job temp dir, then served them as a zip 
 
 ### How does a web page let you pick a local folder?
 
-It can't, on its own: browsers never reveal real local paths to a page. So when you click **Extract Audio**, the page asks the Python server, which opens a native folder window on your machine (Tk's dialog on Windows and Linux, AppleScript's `choose folder` on macOS). On Windows the server does the same Alt-tap trick as Open Folder (below) so the window appears in front of the browser. The page never sends a path back: the server returns a one-time `folder_id` that `/api/extract` exchanges for the folder you actually picked, so another website can't use the local API to save files somewhere else. The last folder is remembered in `%APPDATA%\YT-Audio-Extractor\settings.json` (`~/.config/YT-Audio-Extractor/settings.json` elsewhere).
+It can't, on its own: browsers never reveal real local paths to a page. So when you click **Extract Audio**, the page asks the Python server, which opens a native folder window on your machine (the Windows folder dialog called directly through COM on Windows, since the private Python has no Tk; Tk's dialog on Linux; AppleScript's `choose folder` on macOS). On Windows the server does the same Alt-tap trick as Open Folder (below) so the window appears in front of the browser. The page never sends a path back: the server returns a one-time `folder_id` that `/api/extract` exchanges for the folder you actually picked, so another website can't use the local API to save files somewhere else. The last folder is remembered in `%APPDATA%\YT-Audio-Extractor\settings.json` (`~/.config/YT-Audio-Extractor/settings.json` elsewhere).
 
 ### Why browser cookies passthrough, and how does it fall back?
 
@@ -211,9 +199,9 @@ yt-dlp accepts a `cookiesfrombrowser=(browser,)` option that reads your browser'
 A README that says "open a terminal and run `python app.py`" filters out everyone who doesn't already use a terminal. `YT-Audio-Extractor.bat` is a short script that:
 
 - Kills any stale Flask listener on port 5000 (auto-recovery from previous runs)
-- Probes for Python ≥ 3.10 and pip, with an actionable install hint if either is missing (Python is the only manual prerequisite)
-- Runs `fetch-binaries.ps1` to download and checksum-verify ffmpeg + Deno into `bin/` on first run — no PATH setup
-- Installs Python deps (`pip install -r requirements.txt`) on first run with a Y/N prompt
+- Runs `fetch-binaries.ps1` to download and checksum-verify a private Python (python.org's no-install NuGet package), ffmpeg and Deno into `bin/` on first run, so the user installs nothing and nothing touches PATH
+- Installs the Python packages into that private Python on first run, and checks for a newer yt-dlp on every launch
+- Says what it is doing, and where, at every step
 - Launches the app and the browser
 - Pauses on non-zero exit so error messages stay visible
 

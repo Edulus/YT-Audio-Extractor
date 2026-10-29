@@ -1,0 +1,38 @@
+What this installer does on your PC
+
+1. Copies the app (about 1 MB) into the folder shown on the next page,
+   inside your own user profile. No administrator rights are needed, and
+   other users of this PC are not affected.
+
+2. Adds YT Audio Extractor to your Start menu, and to your desktop if you
+   choose to.
+
+What happens the first time you open the app
+
+A window opens and shows each step as it happens:
+
+- It downloads three helper programs into the app's own "bin" folder,
+  about 160 MB in total:
+    Python 3.14   a private copy, used only by this app and separate
+                  from any Python already on your PC
+    ffmpeg        converts audio between formats and writes the tags and
+                  cover art
+    Deno          solves YouTube's JavaScript challenges
+  Each download is checked against a pinned SHA-256 fingerprint before it
+  is used.
+- It installs two Python packages into that private Python: Flask (runs
+  the app's page) and yt-dlp (the engine that talks to YouTube).
+- It opens the app in your web browser at http://localhost:5000. The page
+  runs on your own PC; nothing is uploaded anywhere.
+
+Later launches skip the downloads and start in a few seconds. Each launch
+checks for a newer yt-dlp, because YouTube changes often.
+
+Nothing is installed system-wide: no PATH changes and no background
+services. Besides your audio files, the app writes only two small files:
+your last-used folder (in %APPDATA%\YT-Audio-Extractor) and a download
+history (in Downloads\YT-Audio).
+
+Uninstalling (Settings > Apps, or the Start menu) removes the app and
+everything it downloaded. Your audio files, the settings file and the
+download history are kept.

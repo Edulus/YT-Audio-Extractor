@@ -25,3 +25,6 @@ backup-*/
 # Local backups and patch leftovers
 *.bak
 patch.ps1
+
+# Installer build output (iscc installer.iss)
+dist/

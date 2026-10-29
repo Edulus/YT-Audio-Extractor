@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.5.0] - 2026-10-29
+### Added
+- Nothing to install first: the launcher now downloads its own private
+  Python 3.14 (python.org's no-install NuGet package, about 15 MB,
+  checksum-verified) into `bin\python`, alongside ffmpeg and Deno, and
+  installs the Python packages into it. It never touches a Python already
+  on the PC, changes no PATH and needs no admin rights.
+- A small Windows installer, `YT-Audio-Extractor-Setup-<version>.exe`,
+  attached to each GitHub release by a new workflow
+  (`.github/workflows/installer.yml`). It installs per user, shows a page
+  explaining exactly what it will do on the PC before installing, adds
+  Start menu and desktop shortcuts, and its uninstaller removes everything
+  the app downloaded.
+- The Progress panel says what is happening right now, in a line under
+  the track title. Before a download starts it counts through seven
+  steps, e.g. "Step 4 of 7 · Solving YouTube's JavaScript challenge
+  (with Deno)": checking your folder, reading your browser's sign-in
+  cookies, asking YouTube about the video, solving the JavaScript
+  challenge, choosing the audio stream, a last check against your folder,
+  and fetching the cover art. After that it shows the download in MB,
+  then converting, writing the tags and embedding the cover art, and the
+  pause between tracks. The status label reads "Preparing" during the
+  seven steps instead of "Queued".
+- The charging glow now rides the progress bar's leading edge: it gathers
+  energy at the left end while the bar is at 0%, then travels with the end
+  of the fill, still pulsing and pulling in motes, until the spark burst
+  at 100%
+### Changed
+- The launcher explains every step as it happens: what each helper program
+  is for, how big the download is, where it goes, that the checksum
+  matched, and which two small files the app keeps outside its folder.
+  The Y/N prompt before installing packages is gone; the window says what
+  it is installing instead.
+- pip runs with `--no-cache-dir`, so no download cache is left in the user
+  profile
+- On Windows the folder window is the Windows folder dialog called
+  directly (the private Python has no tkinter). It looks the same as
+  before and still opens in front of the browser.
+- README and SETUP.md describe the new setup; Python is no longer a
+  prerequisite on Windows
+- Version bumped to v4.5 in index.html and installer.iss
+
 ## [4.1.0] - 2026-10-29
 ### Added
 - Colour theme sliders at the left edge of the window. **Accent** sweeps

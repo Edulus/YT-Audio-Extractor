@@ -491,6 +491,65 @@ def api_preview(video_id: str):
 # Extraction
 # ---------------------------------------------------------------------------
 
+# What the Progress panel says the worker is doing. Steps 1-7 are the
+# preparation before the audio download starts; yt-dlp reports most of them
+# as log lines, which _PhaseLogger turns into plain English.
+PREP_STEPS = 7
+
+# (substring of a yt-dlp log line, prep step or None, text). First match wins,
+# so "player API JSON" must come before "Downloading player ".
+_PHASE_RULES = [
+    ("Extracting cookies from", 2, None),  # text names the browser, see below
+    ("Extracting URL", 3, "Asking YouTube about the video"),
+    ("Downloading webpage", 3, "Asking YouTube about the video"),
+    ("player API JSON", 3, "Asking YouTube about the video"),
+    ("Downloading player ", 4, "Solving YouTube's JavaScript challenge (with Deno)"),
+    ("Solving JS challenges", 4, "Solving YouTube's JavaScript challenge (with Deno)"),
+    ("m3u8 information", 5, "Choosing the best audio stream"),
+    ("format(s)", 5, "Choosing the best audio stream"),
+    ("[ExistingFileGuard]", 6, "Last check: making sure it isn't already in your folder"),
+    ("video thumbnail", 7, "Fetching the cover art"),
+    ("[ThumbnailsConvertor]", 7, "Fetching the cover art"),
+    ("[SquareCover]", 7, "Cropping the cover art square"),
+    ("[ExtractAudio] Not converting", None, "Keeping the original audio (no conversion needed)"),
+    ("[ExtractAudio]", None, "Converting the audio"),
+    ("[Metadata]", None, "Writing the tags (title, artist, date)"),
+    ("[EmbedThumbnail]", None, "Embedding the cover art"),
+]
+
+
+def _set_phase(job_id: str, text: str, step: int | None = None) -> None:
+    _update_job(job_id, phase={"step": step, "of": PREP_STEPS, "text": text})
+
+
+class _PhaseLogger:
+    """yt-dlp logger that turns its progress messages into the job's phase.
+
+    With a logger set, yt-dlp sends every screen message to debug(), even in
+    quiet mode. Errors still go to stderr, as they did without a logger.
+    """
+
+    def __init__(self, job_id: str):
+        self._job_id = job_id
+
+    def debug(self, msg: str) -> None:
+        for needle, step, text in _PHASE_RULES:
+            if needle in msg:
+                if text is None:
+                    browser = msg.split("from", 1)[-1].strip().split()[0].capitalize()
+                    text = f"Reading your {browser} sign-in cookies"
+                _set_phase(self._job_id, text, step)
+                return
+
+    info = debug
+
+    def warning(self, msg: str) -> None:
+        pass
+
+    def error(self, msg: str) -> None:
+        sys.stderr.write(msg + "\n")
+
+
 def _job_snapshot(job: dict) -> dict:
     """Return a copy of job state safe to serialize/send over the wire."""
     return {
@@ -505,6 +564,7 @@ def _job_snapshot(job: dict) -> dict:
         "paused": job.get("pause_requested", False),
         "stopping": job.get("stop_requested", False),
         "stopped": job.get("stopped", False),
+        "phase": job.get("phase"),
     }
 
 
@@ -771,6 +831,7 @@ class ExistingFileGuardPP(PostProcessor):
         self._folder_ids = folder_ids
 
     def run(self, info):
+        self.to_screen("Checking the target folder")  # shown as prep step 6
         video_id = info.get("id")
         if video_id and video_id in self._folder_ids:
             raise _AlreadyHave(record=True)
@@ -911,9 +972,6 @@ def _ask_for_folder(initial: str) -> str | None:
         path = result.stdout.strip()
         return os.path.normpath(path) if result.returncode == 0 and path else None
 
-    import tkinter
-    from tkinter import filedialog
-
     if platform.system() == "Windows":
         # Same Alt-tap trick as _focus_explorer_window: without it Windows
         # opens the dialog behind the browser, because we aren't foreground.
@@ -921,6 +979,14 @@ def _ask_for_folder(initial: str) -> str | None:
         user32 = ctypes.windll.user32
         user32.keybd_event(0x12, 0, 0, 0)
         user32.keybd_event(0x12, 0, 0x0002, 0)
+        try:
+            return _windows_folder_dialog(initial)
+        except OSError as exc:
+            # Fall back to Tk below, if this Python has it.
+            sys.stderr.write(f"Native folder dialog failed ({exc}); trying Tk.\n")
+
+    import tkinter
+    from tkinter import filedialog
 
     root = tkinter.Tk()
     try:
@@ -932,6 +998,102 @@ def _ask_for_folder(initial: str) -> str | None:
     finally:
         root.destroy()
     return os.path.normpath(path) if path else None
+
+
+def _windows_folder_dialog(initial: str) -> str | None:
+    """Show the Windows folder picker (IFileOpenDialog) through COM.
+
+    This is the dialog Tk's askdirectory shows on Windows, called directly:
+    the private Python the launcher downloads has no tkinter. Raises OSError
+    if COM fails, so the caller can fall back.
+    """
+    import ctypes
+    import uuid
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("data", ctypes.c_ubyte * 16)]
+
+    def guid(text):
+        return GUID.from_buffer_copy(uuid.UUID(text).bytes_le)
+
+    def method(obj, index, *argtypes):
+        """Bind entry `index` of a COM object's vtable."""
+        vtable = ctypes.cast(obj, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        proto = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, *argtypes)
+        fn = proto(vtable[index])
+        return lambda *args: fn(obj, *args)
+
+    def check(hr, what):
+        if hr < 0:
+            raise OSError(f"{what} failed (HRESULT 0x{hr & 0xFFFFFFFF:08X})")
+
+    ole32 = ctypes.windll.ole32
+    shell32 = ctypes.windll.shell32
+    user32 = ctypes.windll.user32
+    user32.CreateWindowExW.restype = wintypes.HWND
+    user32.CreateWindowExW.argtypes = [
+        wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+        ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+        wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+
+    FOS_PICKFOLDERS, FOS_FORCEFILESYSTEM = 0x20, 0x40
+    SIGDN_FILESYSPATH = 0x80058000
+    ERROR_CANCELLED_HR = 0x800704C7 - 0x100000000  # HRESULT_FROM_WIN32(ERROR_CANCELLED)
+
+    # STA for this request thread; S_FALSE (already initialised) is fine.
+    initialised = ole32.CoInitializeEx(None, 0x2) >= 0
+    dialog = ctypes.c_void_p()
+    owner = None
+    try:
+        check(ole32.CoCreateInstance(
+            ctypes.byref(guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")),  # FileOpenDialog
+            None, 1, ctypes.byref(guid("D57C7288-D4AD-4768-BE02-9D969532D960")),  # IFileOpenDialog
+            ctypes.byref(dialog)), "CoCreateInstance")
+
+        # IFileDialog vtable: 3 Show, 9 SetOptions, 10 GetOptions,
+        # 12 SetFolder, 17 SetTitle, 20 GetResult; 2 is Release.
+        options = wintypes.DWORD()
+        check(method(dialog, 10, ctypes.POINTER(wintypes.DWORD))(ctypes.byref(options)), "GetOptions")
+        check(method(dialog, 9, wintypes.DWORD)(options.value | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM),
+              "SetOptions")
+        method(dialog, 17, wintypes.LPCWSTR)(FOLDER_DIALOG_TITLE)
+
+        start = ctypes.c_void_p()
+        if os.path.isdir(initial) and shell32.SHCreateItemFromParsingName(
+                initial, None, ctypes.byref(guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")),  # IShellItem
+                ctypes.byref(start)) >= 0:
+            method(dialog, 12, ctypes.c_void_p)(start)
+            method(start, 2)()
+
+        # An invisible topmost owner keeps the dialog in front of the browser.
+        owner = user32.CreateWindowExW(0x00000008 | 0x00000080, "STATIC", None, 0x80000000,  # TOPMOST|TOOLWINDOW, POPUP
+                                       0, 0, 0, 0, None, None, None, None)
+        hr = method(dialog, 3, wintypes.HWND)(owner)
+        if hr == ERROR_CANCELLED_HR:
+            return None
+        check(hr, "Show")
+
+        item = ctypes.c_void_p()
+        check(method(dialog, 20, ctypes.POINTER(ctypes.c_void_p))(ctypes.byref(item)), "GetResult")
+        try:
+            # IShellItem vtable: 5 GetDisplayName.
+            name = ctypes.c_void_p()
+            check(method(item, 5, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p))(
+                SIGDN_FILESYSPATH, ctypes.byref(name)), "GetDisplayName")
+            path = ctypes.wstring_at(name.value)
+            ole32.CoTaskMemFree(name)
+        finally:
+            method(item, 2)()
+        return os.path.normpath(path) if path else None
+    finally:
+        if owner:
+            user32.DestroyWindow(owner)
+        if dialog:
+            method(dialog, 2)()
+        if initialised:
+            ole32.CoUninitialize()
 
 
 @app.post("/api/choose-folder")
@@ -987,12 +1149,16 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
                 downloaded = d.get("downloaded_bytes") or 0
                 job["current_progress"] = (downloaded / total) if total else 0.0
                 job["status"] = "downloading"
+                size = (f"{downloaded / 2**20:.1f} of {total / 2**20:.1f} MB" if total
+                        else f"{downloaded / 2**20:.1f} MB")
+                job["phase"] = {"step": None, "of": PREP_STEPS, "text": f"Downloading the audio: {size}"}
                 info = d.get("info_dict") or {}
                 if info.get("title"):
                     job["current_title"] = info["title"]
             elif d.get("status") == "finished":
                 job["current_progress"] = 1.0
                 job["status"] = "converting"
+                job["phase"] = {"step": None, "of": PREP_STEPS, "text": "Download complete, processing the audio"}
 
     def postprocessor_hook(d):
         # Capture the final audio file path. Multiple postprocessors run per video
@@ -1058,12 +1224,15 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
             "postprocessor_hooks": [postprocessor_hook],
             "writethumbnail": embed_artwork,
             "noplaylist": True,  # one URL per call; never expand to a playlist
+            "logger": _PhaseLogger(job_id),  # turns yt-dlp's messages into phases
         }))
 
     hit_youtube = False
     exts = _format_exts(audio_format)
     # Read once per batch: ids of the tracks (of this format) already in the
     # target folder, from their tags, so renamed files are recognized too.
+    _update_job(job_id, status="preparing", current_title=(videos[0].get("title") if videos else "") or "")
+    _set_phase(job_id, "Checking your folder for tracks you already have", 1)
     folder_ids = _tagged_ids_in(output_dir, exts)
 
     def download(url: str, video: dict, key: str | None, video_id: str | None) -> bool:
@@ -1084,6 +1253,7 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
             # Between consecutive downloads, pause for a randomized 3-7 seconds.
             # Never before the first one, and never for tracks we skip.
             if hit_youtube:
+                _set_phase(job_id, "Waiting a few seconds before the next download, to go easy on YouTube")
                 _sleep_with_control(job_id, random.uniform(*INTER_TRACK_SLEEP_RANGE))
             hit_youtube = True
             ydl.download([url])
@@ -1107,7 +1277,8 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
         video_id = _video_id_for(url, video)
         key = _history_key(video_id, audio_format) if video_id else None
 
-        _update_job(job_id, current_progress=0.0, current_title=video.get("title") or url)
+        _update_job(job_id, current_progress=0.0, current_title=video.get("title") or url, status="preparing")
+        _set_phase(job_id, "Checking the download history")
         _set_item(job_id, i, "active")
 
         with JOBS_LOCK:

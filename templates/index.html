@@ -475,6 +475,14 @@
     }
     .progress-state.done { color: var(--success); }
     .progress-state.error { color: var(--danger); }
+    .progress-phase {
+      min-height: 1.4em;
+      margin: -12px 0 12px;    /* tucked under the title, above the bar */
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+    }
     .progress-title {
       font-size: 15px;
       color: var(--text);
@@ -511,12 +519,14 @@
       background: radial-gradient(circle, rgba(var(--spark-rgb), 0.95), rgba(var(--accent-rgb), 0) 70%);
       box-shadow: none;
     }
-    /* Charging glow at the left end while a batch waits at 0%. */
+    /* Charging glow at the bar's leading edge: it gathers energy at 0% and
+       rides the end of the fill until the burst at 100%. --lead is the
+       fill's width, set from script; left eases like the fill does. */
     .bar-wrap::before {
       content: '';
       position: absolute;
       top: 50%;
-      left: 0;
+      left: var(--lead, 0%);
       width: 18px;
       height: 18px;
       margin: -9px 0 0 -9px;
@@ -524,7 +534,7 @@
       background: radial-gradient(circle, rgba(var(--spark-rgb), 0.95), rgba(var(--accent-rgb), 0.45) 40%, rgba(var(--accent-rgb), 0) 70%);
       opacity: 0;
       transform: scale(0.3);
-      transition: opacity 0.3s, transform 0.3s;
+      transition: opacity 0.3s, transform 0.3s, left 0.25s ease-out;
       pointer-events: none;
     }
     .bar-wrap.charging::before {
@@ -538,7 +548,7 @@
     .mote {
       position: absolute;
       top: 50%;
-      left: 0;
+      left: var(--lead, 0%);
       width: 3px;
       height: 3px;
       border-radius: 50%;
@@ -939,7 +949,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v4.1</span>
+      <span class="tag">v4.5</span>
     </header>
 
     <!-- Search -->
@@ -1035,7 +1045,7 @@
         <a href="https://ffmpeg.org" target="_blank" rel="noopener noreferrer">FFmpeg</a>.
       </p>
       <p>
-        v4.1 &middot;
+        v4.5 &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
         &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
@@ -1675,6 +1685,7 @@
             </div>
           </div>
           <div class="progress-title" id="prog-title">&nbsp;</div>
+          <div class="progress-phase" id="prog-phase"></div>
           <div class="bar-wrap" id="prog-bar"><div class="bar"><div class="bar-fill" id="prog-fill"></div></div></div>
           <div class="progress-counts">
             <span><span id="prog-counts">Completed 0 of ${total}</span><span class="queue-hint" id="prog-hint"> &middot; show queue &#9662;</span></span>
@@ -1725,6 +1736,7 @@
 
     const STATE_LABELS = {
       queued:      'Queued',
+      preparing:   'Preparing',
       downloading: 'Downloading',
       converting:  'Extracting',
       done:        'Done',
@@ -1762,13 +1774,22 @@
 
       titleEl.textContent = payload.current_title || ' ';
 
+      // What the worker is doing right now, e.g. "Step 4 of 7 · Solving ...".
+      const phaseEl = document.getElementById('prog-phase');
+      const phase = !finished && payload.phase;
+      phaseEl.textContent = phase
+        ? (phase.step ? `Step ${phase.step} of ${phase.of} · ` : '') + phase.text
+        : '';
+
       const pct = Math.round((payload.current_progress || 0) * 100);
       const prevPct = Number(fillEl.dataset.pct || 0);
       fillEl.dataset.pct = pct;
       fillEl.style.width = pct + '%';
+      const barEl = document.getElementById('prog-bar');
+      if (barEl) barEl.style.setProperty('--lead', pct + '%');
       // Wait for the width transition so the sparks start where the bar ends.
       if (pct === 100 && prevPct < 100) setTimeout(sparkBurst, 250);
-      setCharging(!finished && !payload.paused && !payload.stopping && pct === 0);
+      setCharging(!finished && !payload.paused && !payload.stopping && pct < 100);
       pctEl.textContent = pct + '%';
       const failed = (payload.errors || []).length;
       const processed = (payload.completed || 0) + (payload.skipped || 0) + failed;
@@ -1787,8 +1808,8 @@
       }
     }
 
-    // While the bar waits at 0%, motes of light gather into a pulsing glow
-    // at its left end, faster the longer it waits.
+    // Until the bar reaches 100%, motes of light gather into a pulsing glow
+    // at its leading edge (the left end at 0%), faster the longer it runs.
     let chargeTimer = null;
     let chargeStart = 0;
     function setCharging(on) {
