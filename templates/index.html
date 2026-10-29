@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
+      color-scheme: dark;  /* dark native scrollbars and form controls */
       --bg: #0b0b0d;
       --bg-elev: #131418;
       --bg-elev-2: #1a1c22;
@@ -49,7 +50,12 @@
     .app {
       max-width: 980px;
       margin: 0 auto;
-      padding: 32px 24px 80px;
+      padding: 32px 24px 24px;
+      /* Column layout so the footer sits at the bottom of the window and
+         any spare space falls above it. */
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     /* ---- Header ---- */
@@ -489,8 +495,16 @@
       border-top: 1px solid var(--border);
       max-height: 320px;
       overflow-y: auto;
+      padding-right: 16px;  /* keep the status column clear of the scrollbar */
       font-size: 13px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
     }
+    /* Older Chromium/Edge without scrollbar-color support. */
+    .queue::-webkit-scrollbar { width: 8px; }
+    .queue::-webkit-scrollbar-track { background: transparent; }
+    .queue::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+    .queue::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
     .progress-panel.expanded .queue { display: flex; flex-direction: column; gap: 2px; }
     .queue-row { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; color: var(--text-dim); }
     .queue-num { font-family: var(--mono); font-size: 11px; color: var(--text-faint); width: 28px; flex-shrink: 0; text-align: right; }
@@ -516,6 +530,41 @@
     .soundiiz-link img { height: 18px; width: auto; display: block; transition: opacity 0.15s; }
     .soundiiz-link:hover img { opacity: 0.8; }
     .soundiiz-link:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+    /* ---- Footer ---- */
+    .app > section:last-of-type { margin-bottom: 56px; }
+    .site-footer {
+      margin-top: auto;
+      padding-top: 24px;
+      position: relative;
+      font-size: 12px;
+      color: var(--text-faint);
+      text-align: center;
+    }
+    /* Rule that fades out at both ends, with an amber dot in the middle
+       like the one in the title. */
+    .site-footer::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-strong) 30%,
+        var(--accent) 50%, var(--border-strong) 70%, transparent);
+      opacity: 0.8;
+    }
+    .site-footer::after {
+      content: '';
+      position: absolute;
+      top: -3px; left: 50%;
+      width: 7px; height: 7px;
+      margin-left: -3.5px;
+      background: var(--accent);
+      transform: rotate(45deg);
+      box-shadow: 0 0 0 4px var(--bg), 0 0 10px rgba(255, 176, 32, 0.5);
+    }
+    .site-footer p { margin: 0 0 6px; }
+    .site-footer p.fine { margin-top: 12px; font-size: 11px; }
+    .site-footer a { color: var(--text-dim); }
+    .site-footer a:hover { color: var(--accent); }
     /* ---- Animations ---- */
     @keyframes fade-in {
       from { opacity: 0; transform: translateY(2px); }
@@ -564,15 +613,15 @@
         <button type="button" id="search-btn" class="btn primary">Search</button>
       </div>
       <p class="search-hint">
-        Playlist on
+        Playlists on
         <a href="https://open.spotify.com" target="_blank" rel="noopener noreferrer">Spotify</a>,
         <a href="https://music.apple.com" target="_blank" rel="noopener noreferrer">Apple Music</a>,
         <a href="https://soundcloud.com" target="_blank" rel="noopener noreferrer">SoundCloud</a>
-        or another service? Convert it to
-        <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer">YouTube</a> with
+        and many other services can be converted to
+        <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer">YouTube</a> playlists with
         <a class="soundiiz-link" href="https://soundiiz.com" target="_blank" rel="noopener noreferrer"
-           title="Open Soundiiz in a new tab"><img src="/static/soundiiz-logo.svg" alt="Soundiiz"></a>,
-        then paste the YouTube playlist link here.
+           title="Open Soundiiz in a new tab"><img src="/static/soundiiz-logo.svg" alt="Soundiiz"></a>.
+        Paste YouTube links here to extract and download the audio files.
       </p>
       <div id="search-status"></div>
     </section>
@@ -623,6 +672,35 @@
         <div class="empty">No results yet. Search above to begin.</div>
       </div>
     </section>
+
+    <footer class="site-footer">
+      <p>
+        Developed by
+        <a href="https://github.com/Edulus" target="_blank" rel="noopener noreferrer">Edward Kasimir</a>
+        with
+        <a href="https://claude.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a>
+        and
+        <a href="https://openai.com/codex" target="_blank" rel="noopener noreferrer">ChatGPT Codex</a>.
+        Source on
+        <a href="https://github.com/Edulus/YT-Audio-Extractor" target="_blank" rel="noopener noreferrer">GitHub</a>.
+      </p>
+      <p>
+        Engine:
+        <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener noreferrer">yt-dlp</a>,
+        with audio conversion by
+        <a href="https://ffmpeg.org" target="_blank" rel="noopener noreferrer">FFmpeg</a>.
+      </p>
+      <p>
+        v3.9 &middot;
+        <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
+        &middot;
+        <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+      </p>
+      <p class="fine">
+        For personal use. Download only content you have the right to, and respect
+        YouTube's Terms of Service. Not affiliated with YouTube or Soundiiz.
+      </p>
+    </footer>
   </div>
 
   <!-- Shared audio element for in-row previews. Hidden; controlled entirely via JS. -->
@@ -1193,8 +1271,11 @@
       const pct = Math.round((payload.current_progress || 0) * 100);
       fillEl.style.width = pct + '%';
       pctEl.textContent = pct + '%';
-      countsEl.textContent = `Completed ${payload.completed} of ${payload.total}` +
-        (payload.skipped ? `, ${payload.skipped} already had` : '');
+      const failed = (payload.errors || []).length;
+      const processed = (payload.completed || 0) + (payload.skipped || 0) + failed;
+      countsEl.textContent = `Processed ${processed} of ${payload.total}: ${payload.completed || 0} saved` +
+        (payload.skipped ? `, ${payload.skipped} already had` : '') +
+        (failed ? `, ${failed} failed` : '');
 
       renderQueue(payload.items || []);
       if (payload.errors && payload.errors.length > 0) {
@@ -1311,21 +1392,20 @@
         : completed > 1
           ? `${completed} files saved`
           : `1 file saved`;
-      const already = skipped > 0
-        ? `<div class="sub">${skipped} track${skipped === 1 ? '' : 's'} already in your folder, skipped.</div>`
-        : '';
-      const partial = errorCount > 0
-        ? `<div class="sub partial">${errorCount} track${errorCount === 1 ? '' : 's'} failed (${completed + skipped}/${total}).</div>`
-        : '';
+      const parts = [`${completed} saved`];
+      if (skipped > 0) parts.push(`${skipped} already in your folder (skipped)`);
+      if (errorCount > 0) parts.push(`<span class="partial">${errorCount} failed</span>`);
+      if (notDone > 0) parts.push(`${notDone} not downloaded`);
+      const breakdown = `<div class="sub">Of ${total} track${total === 1 ? '' : 's'}: ${parts.join(', ')}.</div>`;
 
       els.downloadContainer.innerHTML = `
         <div class="download-panel">
           <div class="info">
             <div>${headline}</div>
             <div class="sub">${escapeHtml(outputDir)}</div>
-            ${already}
-            ${stoppedNote}
-            ${partial}
+            ${breakdown}
+            ${payload.stopped ? '<div class="sub">Stopped.</div>' : ''}
+            ${errorCount > 0 ? '<div class="sub">See // Errors in the Progress panel for why.</div>' : ''}
           </div>
           <button type="button" id="open-folder-btn" class="btn primary">Open Folder</button>
         </div>

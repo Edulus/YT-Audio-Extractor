@@ -10,6 +10,11 @@ All notable changes to this project will be documented in this file.
   starts in the last folder you used, which is remembered in
   `%APPDATA%\YT-Audio-Extractor\settings.json`.
 - The Progress panel shows which folder the batch is being saved to
+- Footer with credits (developed by Edward Kasimir with Claude Code and
+  ChatGPT Codex), links to the GitHub repository, the yt-dlp engine and
+  FFmpeg, the changelog and the MIT License, and a personal-use note.
+  It sits at the bottom of the window, with any spare space above it.
+- LICENSE file with the MIT License text the README already named
 - Pause, Resume and Stop buttons in the Progress panel while a batch runs.
   Pause takes effect immediately, even mid-download, and Resume continues
   the same download. Stop cancels the current download, deletes its
@@ -28,6 +33,17 @@ All notable changes to this project will be documented in this file.
   search result's title differed. Nothing in the target folder is ever
   overwritten or downloaded again.
 ### Changed
+- Reworded the hint under the search bar: "Playlists on Spotify, Apple
+  Music, SoundCloud and many other services can be converted to YouTube
+  playlists with Soundiiz. Paste YouTube links here to extract and
+  download the audio files."
+- More space between the queue's status column and its scrollbar, and a
+  thin dark scrollbar instead of the bright white one (the whole page now
+  uses dark native scrollbars)
+- The batch counts add up to the total: the Progress line reads
+  "Processed 200 of 200: 141 saved, 58 already had, 1 failed", and the
+  finished-batch summary gives the same breakdown instead of
+  "1 track failed (199/200)"
 - A same-name file that its tag shows came from a different video is
   still skipped (saving would overwrite it), but that video is no longer
   recorded in the download history as downloaded
