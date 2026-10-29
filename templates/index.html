@@ -20,9 +20,14 @@
       --text: #f5f5f7;
       --text-dim: #9a9ea8;
       --text-faint: #6b6f78;
+      /* Accent colours. The theme picker overwrites these on :root. */
       --accent: #ffb020;
+      --accent-rgb: 255, 176, 32;
       --accent-strong: #ffc24d;
-      --accent-dim: rgba(255, 176, 32, 0.12);
+      --accent-dim: rgba(var(--accent-rgb), 0.12);
+      --spark: #ffd27a;            /* light tint for sparks and glows */
+      --spark-rgb: 255, 214, 130;
+      --on-accent: #1a1200;        /* text on accent-coloured buttons */
       --danger: #ff5a5a;
       --success: #4ade80;
       --radius: 6px;
@@ -144,7 +149,7 @@
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn.primary {
       background: var(--accent);
-      color: #1a1200;
+      color: var(--on-accent);
       border-color: var(--accent);
     }
     .btn.primary:hover:not(:disabled) {
@@ -343,7 +348,7 @@
     .play-btn.playing {
       border-color: var(--accent);
       background: var(--accent);
-      color: #1a1200;
+      color: var(--on-accent);
     }
     .play-btn.is-loading {
       animation: pulse-glow 1s ease-in-out infinite;
@@ -496,14 +501,14 @@
       width: 4px;
       height: 4px;
       border-radius: 50%;
-      background: #ffd27a;
-      box-shadow: 0 0 6px 1px rgba(255, 176, 32, 0.85);
+      background: var(--spark);
+      box-shadow: 0 0 6px 1px rgba(var(--accent-rgb), 0.85);
       pointer-events: none;
     }
     .spark.flash {
       width: 20px;
       height: 20px;
-      background: radial-gradient(circle, rgba(255, 230, 170, 0.95), rgba(255, 176, 32, 0) 70%);
+      background: radial-gradient(circle, rgba(var(--spark-rgb), 0.95), rgba(var(--accent-rgb), 0) 70%);
       box-shadow: none;
     }
     /* Charging glow at the left end while a batch waits at 0%. */
@@ -516,7 +521,7 @@
       height: 18px;
       margin: -9px 0 0 -9px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(255, 214, 130, 0.95), rgba(255, 176, 32, 0.45) 40%, rgba(255, 176, 32, 0) 70%);
+      background: radial-gradient(circle, rgba(var(--spark-rgb), 0.95), rgba(var(--accent-rgb), 0.45) 40%, rgba(var(--accent-rgb), 0) 70%);
       opacity: 0;
       transform: scale(0.3);
       transition: opacity 0.3s, transform 0.3s;
@@ -537,8 +542,8 @@
       width: 3px;
       height: 3px;
       border-radius: 50%;
-      background: #ffd27a;
-      box-shadow: 0 0 5px 1px rgba(255, 176, 32, 0.8);
+      background: var(--spark);
+      box-shadow: 0 0 5px 1px rgba(var(--accent-rgb), 0.8);
       pointer-events: none;
     }
     .bar-fill {
@@ -622,6 +627,166 @@
     .soundiiz-link img { height: 18px; width: auto; display: block; transition: opacity 0.15s; }
     .soundiiz-link:hover img { opacity: 0.8; }
     .soundiiz-link:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+    /* ---- Theme controls ---- */
+    /* One panel fixed at the left edge: the accent and background sliders,
+       with the preset dials to their right. On narrower windows it lies
+       flat above the header. */
+    .theme-picker {
+      position: fixed;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 12px 12px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      z-index: 10;
+    }
+    .theme-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .theme-sliders { display: flex; gap: 10px; }
+    .theme-slider {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .theme-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      height: 74px;             /* same for every column, so they line up */
+    }
+    .theme-presets {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding-left: 12px;
+      border-left: 1px solid var(--border);
+    }
+    .preset-dials {
+      display: grid;
+      grid-template-columns: repeat(2, 24px);
+      gap: 10px 9px;
+    }
+    .theme-slider input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      writing-mode: vertical-lr;
+      direction: rtl;           /* low values at the bottom */
+      width: 12px;
+      height: 220px;
+      margin: 0;
+      border-radius: 6px;
+      background: var(--track);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+    }
+    .theme-slider input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--thumb);
+      border: 2px solid var(--text);
+      box-shadow: 0 0 0 2px var(--bg-elev), 0 0 10px var(--thumb);
+    }
+    .theme-slider input[type=range]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--thumb);
+      border: 2px solid var(--text);
+    }
+    .theme-slider input[type=range]:focus-visible { outline: 1px dashed var(--text-dim); outline-offset: 4px; }
+    .theme-reset {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .theme-reset:hover { color: var(--accent); border-color: var(--accent); }
+    /* Preset dial: the preset's background colour with its accent as the
+       centre dot. */
+    .dial { position: relative; display: block; cursor: pointer; line-height: 0; }
+    .dial input {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      cursor: pointer;
+    }
+    .dial .face {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--dial-bg);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .dial .face::after {
+      content: '';
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--dial-accent);
+      box-shadow: 0 0 6px var(--dial-accent);
+    }
+    .dial:hover .face { transform: scale(1.12); }
+    .dial input:checked + .face {
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+        0 0 0 2px var(--bg-elev), 0 0 0 4px var(--dial-accent), 0 0 12px var(--dial-accent);
+    }
+    .dial input:focus-visible + .face { outline: 1px dashed var(--text-dim); outline-offset: 6px; }
+    /* Below this width the fixed panel would overlap the page content. */
+    @media (max-width: 1320px) {
+      .theme-picker {
+        position: static;
+        transform: none;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        max-width: calc(100% - 32px);
+        margin: 16px auto 0;
+        padding: 10px 16px;
+      }
+      .theme-main { flex-direction: row; }
+      .theme-sliders { flex-direction: column; gap: 8px; }
+      .theme-slider { flex-direction: row; }
+      .theme-label { writing-mode: horizontal-tb; transform: none; height: auto; }
+      .theme-slider .theme-label { width: 84px; }
+      .theme-presets { flex-direction: row; }
+      .preset-dials { grid-template-columns: repeat(6, 24px); }
+      .theme-slider input[type=range] {
+        writing-mode: horizontal-tb;
+        direction: ltr;
+        width: min(220px, 40vw);
+        height: 12px;
+      }
+    }
+
     /* ---- Footer ---- */
     .app > section:last-of-type { margin-bottom: 56px; }
     .site-footer {
@@ -651,7 +816,7 @@
       margin-left: -3.5px;
       background: var(--accent);
       transform: rotate(45deg);
-      box-shadow: 0 0 0 4px var(--bg), 0 0 10px rgba(255, 176, 32, 0.5);
+      box-shadow: 0 0 0 4px var(--bg), 0 0 10px rgba(var(--accent-rgb), 0.5);
     }
     .site-footer p { margin: 0 0 6px; }
     .site-footer p.fine { margin-top: 12px; font-size: 11px; }
@@ -679,15 +844,102 @@
       .actions { flex-direction: column; gap: 12px; align-items: stretch; }
     }
   </style>
+  <script>
+    // Theme: an accent hue and a background tint, set with the sliders on
+    // the left or a preset on the right. The accent colours buttons, links,
+    // the bar and its effects; the background tints the dark surfaces and
+    // borders, which stay dark so text reads.
+    //
+    // Background slider values: 0-19 is the original neutral near-black;
+    // 20-380 is a full colour wheel of tinted darks (hue = value - 20).
+    const BG_NEUTRAL_END = 20;
+    const THEME_DEFAULTS = { accent: 39, bg: 0 };
+    const THEME_KEY = 'yt-audio-theme-v2';
+
+    // Ready-made accent + background pairs (bg: a hue, or null for neutral).
+    const THEME_PRESETS = [
+      { name: 'Original',  accent: 39,  bg: null },
+      { name: 'Midnight',  accent: 205, bg: 225 },
+      { name: 'Synthwave', accent: 318, bg: 268 },
+      { name: 'Sunset',    accent: 18,  bg: 300 },
+      { name: 'Ember',     accent: 24,  bg: 10 },
+      { name: 'Rose Wine', accent: 338, bg: 345 },
+      { name: 'Lavender',  accent: 262, bg: 250 },
+      { name: 'Ocean',     accent: 182, bg: 200 },
+      { name: 'Forest',    accent: 92,  bg: 140 },
+      { name: 'Matrix',    accent: 135, bg: null },
+      { name: 'Toxic',     accent: 75,  bg: 280 },
+      { name: 'Gold Navy', accent: 45,  bg: 222 },
+    ].map(p => ({ ...p, bg: p.bg == null ? 0 : p.bg + BG_NEUTRAL_END }));
+
+    function hslToRgb(h, s, l) {
+      s /= 100; l /= 100;
+      const k = n => (n + h / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+      return [f(0), f(8), f(4)].map(v => Math.round(v * 255));
+    }
+    const hsl = (h, s, l) => `hsl(${h} ${s}% ${l}%)`;
+
+    // Background slider value -> [hue, saturation] for the dark surfaces.
+    function bgTint(v) {
+      return v < BG_NEUTRAL_END ? [235, 8] : [v - BG_NEUTRAL_END, 34];
+    }
+
+    function applyTheme({ accent, bg }) {
+      const [h, sat] = bgTint(bg);
+      const root = document.documentElement.style;
+      root.setProperty('--accent', hsl(accent, 100, 56));
+      root.setProperty('--accent-rgb', hslToRgb(accent, 100, 56).join(', '));
+      root.setProperty('--accent-strong', hsl(accent, 100, 65));
+      root.setProperty('--spark', hsl(accent, 100, 74));
+      root.setProperty('--spark-rgb', hslToRgb(accent, 100, 74).join(', '));
+      root.setProperty('--on-accent', hsl(accent, 80, 6));
+      root.setProperty('--bg', hsl(h, sat, 5));
+      root.setProperty('--bg-elev', hsl(h, sat * 0.85, 9));
+      root.setProperty('--bg-elev-2', hsl(h, sat * 0.8, 12.5));
+      root.setProperty('--border', hsl(h, sat * 0.6, 20));
+      root.setProperty('--border-strong', hsl(h, sat * 0.6, 27));
+    }
+
+    function savedTheme() {
+      try {
+        const t = JSON.parse(localStorage.getItem(THEME_KEY));
+        if (t && Number.isFinite(t.accent) && Number.isFinite(t.bg)) return t;
+      } catch { /* fall through to the defaults */ }
+      return { ...THEME_DEFAULTS };
+    }
+    // Runs in <head> so the saved theme is in place before the page paints.
+    applyTheme(savedTheme());
+  </script>
 </head>
 <body>
+  <nav class="theme-picker" id="theme-picker" aria-label="Colour theme">
+    <div class="theme-main">
+      <div class="theme-sliders">
+        <label class="theme-slider" title="Accent colour">
+          <span class="theme-label">Accent</span>
+          <input type="range" id="theme-accent" min="0" max="360" step="1" aria-label="Accent colour">
+        </label>
+        <label class="theme-slider" title="Background tint (bottom: original near-black)">
+          <span class="theme-label">Background</span>
+          <input type="range" id="theme-bg" min="0" max="380" step="1" aria-label="Background tint">
+        </label>
+      </div>
+      <button type="button" class="theme-reset" id="theme-reset" title="Reset to the original colours" aria-label="Reset colours">&#8634;</button>
+    </div>
+    <div class="theme-presets" role="radiogroup" aria-label="Theme presets">
+      <span class="theme-label">Presets</span>
+      <div class="preset-dials" id="theme-presets"></div>
+    </div>
+  </nav>
   <div class="app">
     <header class="top">
       <div>
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v4.0</span>
+      <span class="tag">v4.1</span>
     </header>
 
     <!-- Search -->
@@ -783,7 +1035,7 @@
         <a href="https://ffmpeg.org" target="_blank" rel="noopener noreferrer">FFmpeg</a>.
       </p>
       <p>
-        v4.0 &middot;
+        v4.1 &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
         &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
@@ -799,6 +1051,74 @@
   <audio id="preview-audio" preload="none"></audio>
 
   <script>
+    // -------------------- Theme controls --------------------
+    (function setUpTheme() {
+      const accentEl = document.getElementById('theme-accent');
+      const bgEl = document.getElementById('theme-bg');
+      const presetsEl = document.getElementById('theme-presets');
+
+      const wheel = (s, l, from) => Array.from({ length: 13 }, (_, i) =>
+        `${hsl(i * 30, s, l)} ${(from + (100 - from) * i / 12).toFixed(2)}%`).join(', ');
+      const neutralPct = BG_NEUTRAL_END / 380 * 100;
+      accentEl.style.setProperty('--track', `linear-gradient(to top, ${wheel(100, 56, 0)})`);
+      bgEl.style.setProperty('--track',
+        `linear-gradient(to top, hsl(235 8% 16%) 0%, hsl(235 8% 16%) ${neutralPct.toFixed(2)}%, ${wheel(45, 24, neutralPct)})`);
+
+      const swatchBg = (v) => { const [h, sat] = bgTint(v); return hsl(h, sat * 1.3, 18); };
+
+      const presetInputs = THEME_PRESETS.map((preset, i) => {
+        const label = document.createElement('label');
+        label.className = 'dial';
+        label.title = preset.name;
+        label.style.setProperty('--dial-bg', swatchBg(preset.bg));
+        label.style.setProperty('--dial-accent', hsl(preset.accent, 100, 56));
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'theme-preset';
+        input.value = i;
+        input.setAttribute('aria-label', preset.name);
+        input.addEventListener('change', () => {
+          theme = { accent: preset.accent, bg: preset.bg };
+          show();
+          save();
+        });
+        const face = document.createElement('span');
+        face.className = 'face';
+        label.appendChild(input);
+        label.appendChild(face);
+        presetsEl.appendChild(label);
+        return input;
+      });
+
+      let theme = savedTheme();
+      function show() {
+        accentEl.value = theme.accent;
+        bgEl.value = theme.bg;
+        accentEl.style.setProperty('--thumb', hsl(theme.accent, 100, 56));
+        bgEl.style.setProperty('--thumb', swatchBg(theme.bg));
+        // Light up the preset that matches the current colours, if any.
+        const bgKey = (v) => v < BG_NEUTRAL_END ? 'n' : v;
+        presetInputs.forEach((input, i) => {
+          const p = THEME_PRESETS[i];
+          input.checked = p.accent === theme.accent && bgKey(p.bg) === bgKey(theme.bg);
+        });
+        applyTheme(theme);
+      }
+      function save() {
+        try { localStorage.setItem(THEME_KEY, JSON.stringify(theme)); } catch { /* applied, just not remembered */ }
+      }
+      accentEl.addEventListener('input', () => { theme.accent = Number(accentEl.value); show(); });
+      bgEl.addEventListener('input', () => { theme.bg = Number(bgEl.value); show(); });
+      accentEl.addEventListener('change', save);
+      bgEl.addEventListener('change', save);
+      document.getElementById('theme-reset').addEventListener('click', () => {
+        theme = { ...THEME_DEFAULTS };
+        show();
+        save();
+      });
+      show();
+    })();
+
     // -------------------- Icons --------------------
     // Inline SVGs so the play/pause glyphs are geometrically symmetric inside
     // the round button (unicode glyphs sit asymmetrically in their font box).

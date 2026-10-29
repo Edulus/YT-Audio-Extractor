@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.1.0] - 2026-10-29
+### Added
+- Colour theme sliders at the left edge of the window. **Accent** sweeps
+  the full colour wheel and recolours every accent on the page: buttons,
+  links, toggles, the progress bar, sparks and glows, and the footer rule.
+  **Background** tints the dark backgrounds, panels and borders toward any
+  hue while keeping them dark, so text stays readable. The colours change
+  live as you drag, are remembered in the browser, and the reset button
+  returns to the original amber on near-black. The bottom of the
+  Background track is the original neutral near-black; above it is a full
+  colour wheel of richly tinted darks.
+- Theme presets to the right of the sliders, in the same panel: 12
+  dials in two columns, each showing
+  its background colour with its accent as the centre dot (Original,
+  Midnight, Synthwave, Sunset, Ember, Rose Wine, Lavender, Ocean, Forest,
+  Matrix, Toxic, Gold Navy). Clicking one sets both sliders; the dial
+  stays lit while the colours match it.
+- On windows narrower than about 1320px the panel lies flat above the
+  header, with the sliders and the presets side by side
+### Changed
+- All accent colours now come from CSS variables, so a theme reaches
+  every element (previously some glows and button text were hard-coded
+  amber)
+- Version bumped to v4.1 in index.html and installer.iss
+
 ## [4.0.0] - 2026-10-29
 ### Added
 - Sort the search results by Relevance, Title, Channel, Duration or
