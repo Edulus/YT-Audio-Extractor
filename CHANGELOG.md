@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.0.0] - 2026-10-29
+### Added
+- Sort the search results by Relevance, Title, Channel, Duration or
+  Views. The first click on a key uses its natural order (A to Z,
+  shortest first, most viewed first); clicking it again reverses it, and
+  an arrow shows the direction. Tracks with no value for that key go
+  last. Ticked tracks stay ticked, and "Load more results" adds to the
+  sorted list.
+- Each result shows its view count next to the duration, e.g.
+  "730.3K views" (hover for the exact number)
+- A small burst of amber sparks from the right end of the progress bar
+  each time it reaches 100%
+- A "charging up" effect at the left end of the progress bar while a
+  running batch waits at 0% (between tracks, before a download starts):
+  motes of light gather into a pulsing amber glow, faster the longer it
+  waits. It stops when the download starts, and while paused.
+### Changed
+- Slightly larger title, subtitle and version tag in the header
+- Version bumped to v4.0 in index.html and installer.iss
+
 ## [3.9.0] - 2026-10-28
 ### Added
 - Choose where files are saved: clicking Extract Audio opens a native

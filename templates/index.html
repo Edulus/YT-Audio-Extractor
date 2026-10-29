@@ -69,7 +69,7 @@
     }
     header.top h1 {
       font-family: var(--mono);
-      font-size: 18px;
+      font-size: 22px;
       font-weight: 700;
       letter-spacing: 0.02em;
       margin: 0;
@@ -78,14 +78,14 @@
     header.top h1 .accent { color: var(--accent); }
     header.top .subtitle {
       margin: 6px 0 0;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--accent);
       font-weight: 400;
       font-style: italic;
     }
     header.top .tag {
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 13px;
       color: var(--accent);
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -210,6 +210,43 @@
       font-family: var(--mono);
       font-size: 12px;
       color: var(--text-dim);
+    }
+    .sort-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .sort-bar .label {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-right: 4px;
+    }
+    .sort-btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .sort-btn:hover { border-color: var(--border-strong); color: var(--text); }
+    .sort-btn.active { color: var(--accent); border-color: var(--accent); background: var(--bg-elev-2); }
+    .sort-btn .arrow { margin-left: 5px; }
+    .result .views {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-faint);
+      letter-spacing: 0.04em;
     }
     .results-list {
       display: flex;
@@ -449,6 +486,61 @@
       border-radius: 3px;
       overflow: hidden;
     }
+    /* Sparks fly outside the bar, so they live in this wrapper, not in
+       .bar (which clips its fill to the rounded track). */
+    .bar-wrap { position: relative; }
+    .spark {
+      position: absolute;
+      top: 50%;
+      left: 100%;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #ffd27a;
+      box-shadow: 0 0 6px 1px rgba(255, 176, 32, 0.85);
+      pointer-events: none;
+    }
+    .spark.flash {
+      width: 20px;
+      height: 20px;
+      background: radial-gradient(circle, rgba(255, 230, 170, 0.95), rgba(255, 176, 32, 0) 70%);
+      box-shadow: none;
+    }
+    /* Charging glow at the left end while a batch waits at 0%. */
+    .bar-wrap::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 18px;
+      height: 18px;
+      margin: -9px 0 0 -9px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 214, 130, 0.95), rgba(255, 176, 32, 0.45) 40%, rgba(255, 176, 32, 0) 70%);
+      opacity: 0;
+      transform: scale(0.3);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    .bar-wrap.charging::before {
+      opacity: 1;
+      animation: charge-pulse 0.9s ease-in-out infinite;
+    }
+    @keyframes charge-pulse {
+      0%, 100% { transform: scale(0.75); filter: brightness(0.85); }
+      50%      { transform: scale(1.15); filter: brightness(1.25); }
+    }
+    .mote {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: #ffd27a;
+      box-shadow: 0 0 5px 1px rgba(255, 176, 32, 0.8);
+      pointer-events: none;
+    }
     .bar-fill {
       height: 100%;
       background: var(--accent);
@@ -595,7 +687,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v3.9</span>
+      <span class="tag">v4.0</span>
     </header>
 
     <!-- Search -->
@@ -691,7 +783,7 @@
         <a href="https://ffmpeg.org" target="_blank" rel="noopener noreferrer">FFmpeg</a>.
       </p>
       <p>
-        v3.9 &middot;
+        v4.0 &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
         &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
@@ -717,6 +809,7 @@
     const state = {
       results: [],
       selectedIds: new Set(),
+      sort: { key: 'order', dir: 'asc' },  // results order: key from SORT_KEYS, asc or desc
       format: 'best',
       jobId: null,
       jobActive: false,
@@ -896,7 +989,7 @@
           return;
         }
 
-        state.results = data.results || [];
+        state.results = (data.results || []).map((r, i) => ({ ...r, order: i }));
         state.searchMeta = data;
         state.searchOffset = state.results.length;
         state.searchHasMore = data.has_more || false;
@@ -938,10 +1031,12 @@
         els.resultsMeta.textContent = `${state.results.length} ${state.results.length === 1 ? 'result' : 'results'}`;
       }
 
+      container.appendChild(renderSortBar());
+
       const list = document.createElement('div');
       list.className = 'results-list';
 
-      state.results.forEach(r => {
+      sortedResults().forEach(r => {
         const row = document.createElement('div');
         row.className = 'result';
         if (state.selectedIds.has(r.id)) row.classList.add('selected');
@@ -989,6 +1084,13 @@
             duration.textContent = r.duration_string;
             dRow.appendChild(duration);
           }
+          if (r.view_count != null) {
+            const views = document.createElement('span');
+            views.className = 'views';
+            views.textContent = formatViews(r.view_count);
+            views.title = `${r.view_count.toLocaleString()} views`;
+            dRow.appendChild(views);
+          }
           const playBtn = document.createElement('button');
           playBtn.type = 'button';
           playBtn.className = 'play-btn';
@@ -1026,6 +1128,77 @@
       updateExtractButton();
     }
 
+    // ---- Sorting ----
+    // Each key's first click uses its natural direction (A to Z, shortest
+    // first, most viewed first); clicking the active key flips it.
+    const SORT_KEYS = [
+      { key: 'order',    label: 'Relevance', dir: 'asc' },
+      { key: 'title',    label: 'Title',     dir: 'asc' },
+      { key: 'uploader', label: 'Channel',   dir: 'asc' },
+      { key: 'duration', label: 'Duration',  dir: 'asc' },
+      { key: 'views',    label: 'Views',     dir: 'desc' },
+    ];
+
+    function sortValue(r, key) {
+      if (key === 'views') return r.view_count;
+      if (key === 'title' || key === 'uploader') return r[key] ? r[key].toLowerCase() : null;
+      return r[key];
+    }
+
+    function sortedResults() {
+      const { key, dir } = state.sort;
+      const sign = dir === 'asc' ? 1 : -1;
+      return [...state.results].sort((a, b) => {
+        const va = sortValue(a, key), vb = sortValue(b, key);
+        // Missing values always go last, whichever direction.
+        if (va == null && vb == null) return a.order - b.order;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        const cmp = typeof va === 'string'
+          ? va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' })
+          : va - vb;
+        return cmp !== 0 ? sign * cmp : a.order - b.order;
+      });
+    }
+
+    function renderSortBar() {
+      const bar = document.createElement('div');
+      bar.className = 'sort-bar';
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = 'Sort';
+      bar.appendChild(label);
+      SORT_KEYS.forEach(({ key, label: text, dir }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sort-btn';
+        btn.textContent = text;
+        if (state.sort.key === key) {
+          btn.classList.add('active');
+          const arrow = document.createElement('span');
+          arrow.className = 'arrow';
+          arrow.textContent = state.sort.dir === 'asc' ? '▲' : '▼';
+          btn.appendChild(arrow);
+          btn.title = state.sort.dir === 'asc' ? 'Ascending: click to reverse' : 'Descending: click to reverse';
+        }
+        btn.addEventListener('click', () => {
+          if (state.sort.key === key) {
+            state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            state.sort = { key, dir };
+          }
+          renderResults();
+        });
+        bar.appendChild(btn);
+      });
+      return bar;
+    }
+
+    function formatViews(n) {
+      const short = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+      return `${short} ${n === 1 ? 'view' : 'views'}`;
+    }
+
     async function loadMore() {
       if (state.isLoadingMore || state.isSearching) return;
       state.isLoadingMore = true;
@@ -1046,7 +1219,8 @@
           return;
         }
 
-        const newResults = data.results || [];
+        const start = state.results.length;
+        const newResults = (data.results || []).map((r, i) => ({ ...r, order: start + i }));
         state.results = [...state.results, ...newResults];
         state.searchOffset += newResults.length;
         state.searchHasMore = data.has_more || false;
@@ -1181,7 +1355,7 @@
             </div>
           </div>
           <div class="progress-title" id="prog-title">&nbsp;</div>
-          <div class="bar"><div class="bar-fill" id="prog-fill"></div></div>
+          <div class="bar-wrap" id="prog-bar"><div class="bar"><div class="bar-fill" id="prog-fill"></div></div></div>
           <div class="progress-counts">
             <span><span id="prog-counts">Completed 0 of ${total}</span><span class="queue-hint" id="prog-hint"> &middot; show queue &#9662;</span></span>
             <span id="prog-pct">0%</span>
@@ -1269,7 +1443,12 @@
       titleEl.textContent = payload.current_title || ' ';
 
       const pct = Math.round((payload.current_progress || 0) * 100);
+      const prevPct = Number(fillEl.dataset.pct || 0);
+      fillEl.dataset.pct = pct;
       fillEl.style.width = pct + '%';
+      // Wait for the width transition so the sparks start where the bar ends.
+      if (pct === 100 && prevPct < 100) setTimeout(sparkBurst, 250);
+      setCharging(!finished && !payload.paused && !payload.stopping && pct === 0);
       pctEl.textContent = pct + '%';
       const failed = (payload.errors || []).length;
       const processed = (payload.completed || 0) + (payload.skipped || 0) + failed;
@@ -1285,6 +1464,72 @@
       } else {
         errorsEl.classList.add('hidden');
         errorsEl.innerHTML = '';
+      }
+    }
+
+    // While the bar waits at 0%, motes of light gather into a pulsing glow
+    // at its left end, faster the longer it waits.
+    let chargeTimer = null;
+    let chargeStart = 0;
+    function setCharging(on) {
+      const wrap = document.getElementById('prog-bar');
+      if (wrap) wrap.classList.toggle('charging', on);
+      if (on && !chargeTimer && wrap && wrap.animate) {
+        chargeStart = Date.now();
+        chargeTimer = setInterval(spawnMote, 70);
+      } else if (!on && chargeTimer) {
+        clearInterval(chargeTimer);
+        chargeTimer = null;
+      }
+    }
+    function spawnMote() {
+      const wrap = document.getElementById('prog-bar');
+      if (!wrap || !wrap.classList.contains('charging')) { setCharging(false); return; }
+      const ramp = Math.min(1, (Date.now() - chargeStart) / 4000);
+      if (Math.random() > 0.3 + 0.7 * ramp) return;
+      const mote = document.createElement('div');
+      mote.className = 'mote';
+      wrap.appendChild(mote);
+      const angle = Math.random() * 2 * Math.PI;
+      const dist = 12 + Math.random() * 14;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      mote.animate(
+        [{ transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.6)`, opacity: 0 },
+         { opacity: 1, offset: 0.4 },
+         { transform: 'translate(-50%, -50%) scale(1.1)', opacity: 0 }],
+        { duration: 650 - 250 * ramp + Math.random() * 200, easing: 'cubic-bezier(0.5, 0, 0.9, 0.6)' }
+      ).onfinish = () => mote.remove();
+    }
+
+    // A small burst of sparks from the right end of the progress bar.
+    function sparkBurst() {
+      const wrap = document.getElementById('prog-bar');
+      if (!wrap || !wrap.animate) return;
+
+      const flash = document.createElement('div');
+      flash.className = 'spark flash';
+      wrap.appendChild(flash);
+      flash.animate(
+        [{ transform: 'translate(-50%, -50%) scale(0.4)', opacity: 1 },
+         { transform: 'translate(-50%, -50%) scale(1.6)', opacity: 0 }],
+        { duration: 380, easing: 'ease-out' }
+      ).onfinish = () => flash.remove();
+
+      for (let i = 0; i < 18; i++) {
+        const spark = document.createElement('div');
+        spark.className = 'spark';
+        wrap.appendChild(spark);
+        // Mostly to the right, fanning up and down.
+        const angle = (Math.random() * 220 - 110) * Math.PI / 180;
+        const dist = 18 + Math.random() * 30;
+        const dx = Math.cos(angle) * dist;
+        const dy = Math.sin(angle) * dist;
+        spark.animate(
+          [{ transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+           { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy + 6}px)) scale(0.2)`, opacity: 0 }],
+          { duration: 450 + Math.random() * 350, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' }
+        ).onfinish = () => spark.remove();
       }
     }
 
