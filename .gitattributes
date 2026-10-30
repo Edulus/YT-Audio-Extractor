@@ -1,0 +1,4 @@
+# Windows scripts must keep CRLF line endings, or cmd can misread labels
+# and jumps in a .bat when it is downloaded as a zip.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
