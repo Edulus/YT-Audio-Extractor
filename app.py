@@ -665,6 +665,72 @@ def _add_to_history(key: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Taking video words out of track titles
+# ---------------------------------------------------------------------------
+# "(Official Video)", "| Official Audio", "(Visualizer)" and the like describe
+# the YouTube upload, not the track, and so does "(Video Edit)". Words that
+# identify a version, such as "(Official Remix)" or "(Radio Edit)", stay, and
+# so does a song that is really called "Video". Clean-Audio-Filenames.ps1
+# holds the same rules for
+# files already saved: change both together.
+
+_OFFICIAL = r"offici(?:al|el|elle)"
+_MEDIA = r"vid[eé]o|videoclip|clip|audio|visuali[sz]er|visual"
+_FILLER = rf"{_OFFICIAL}|music|lyrics?|full|original|hd|hq|4k|8k"
+_SEP = r"|｜•·/_~:"
+_DASH = r"\-–—"
+
+_BRACKET_RE = re.compile(
+    r"[(\[{（［【「『]"
+    r"([^()\[\]{}（）［］【】「」『』]*)"
+    r"[)\]}）］】」』]")
+_UNDERSCORED_RE = re.compile(r"(?<!\S)_([^_]+)_(?!\S)")  # "|" or similar in a saved name
+_ONLY_NOISE_RE = re.compile(
+    rf"vid[eé]o\s+edit|(?:(?:{_FILLER})\s+)*(?:{_MEDIA}|{_OFFICIAL}|hd|hq|4k|8k)(?:\s+(?:{_FILLER}|{_MEDIA}))*",
+    re.IGNORECASE)
+_OFFICIAL_MEDIA_RE = re.compile(
+    rf"\b{_OFFICIAL}\b(?!.*\b(?:remix|mix|version|bootleg)\b).*\b(?:{_MEDIA}|lyrics?)\b",
+    re.IGNORECASE)
+_LOOSE_OFFICIAL_RE = re.compile(
+    rf"(?:^|\s*[{_SEP}]+\s*|\s+[{_DASH}]*\s*){_OFFICIAL}(?:\s+(?:music|lyrics?|hd|4k))*"
+    rf"(?:\s+(?:{_MEDIA}))+(?:\s+(?:hd|hq|4k|8k|edit))?(?=\s*(?:$|[{_SEP}{_DASH}(\[]))",
+    re.IGNORECASE)
+_LOOSE_TAIL_RE = re.compile(
+    rf"(?:\s*[{_SEP}]+\s*|\s+[{_DASH}]+\s*)(?:{_OFFICIAL}|music video|lyrics? video|vid[eé]o edit|visuali[sz]er)\s*$",
+    re.IGNORECASE)
+_LOOSE_ENDS_RE = re.compile(rf"^[\s{_SEP}{_DASH}]+|[\s{_SEP}{_DASH}]+$")
+
+
+def clean_title(title: str) -> str:
+    """'Song (Official Video)' -> 'Song'. Other titles come back untouched."""
+    def drop_noise(match):
+        inner = match.group(1).strip()
+        noise = _ONLY_NOISE_RE.fullmatch(inner) or _OFFICIAL_MEDIA_RE.search(inner)
+        return " " if noise else match.group(0)
+
+    cleaned = _BRACKET_RE.sub(drop_noise, title)
+    cleaned = _UNDERSCORED_RE.sub(drop_noise, cleaned)
+    cleaned = _LOOSE_OFFICIAL_RE.sub("", cleaned)
+    cleaned = _LOOSE_TAIL_RE.sub("", cleaned)
+    if cleaned == title:
+        return title
+    cleaned = re.sub(r"\s{2,}", " ", _LOOSE_ENDS_RE.sub("", cleaned))
+    return cleaned or title
+
+
+class CleanTitlePP(PostProcessor):
+    """Save and tag the track under its cleaned title.
+
+    Runs before download, after ExistingFileGuardPP has looked for the file.
+    """
+
+    def run(self, info):
+        if info.get("title"):
+            info["title"] = clean_title(info["title"])
+        return [], info
+
+
+# ---------------------------------------------------------------------------
 # Recognizing tracks already in the target folder
 # ---------------------------------------------------------------------------
 # Since v3.6 every file carries its source URL in a tag (FFmpegMetadata writes
@@ -757,11 +823,17 @@ def _tagged_ids_in(folder: str, exts: set) -> set:
 
 
 def _existing_file_for(ydl, info: dict, exts: set) -> str | None:
-    """A file in the target folder that this video would be saved over, if any."""
-    for ext in exts:
-        path = ydl.prepare_filename({**info, "ext": ext})
-        if os.path.isfile(path):
-            return path
+    """A file in the target folder that this video would be saved over, if any.
+
+    Looks for the cleaned title and for the full title, which is how files
+    were named before v4.7.
+    """
+    title = info.get("title") or ""
+    for name in dict.fromkeys((clean_title(title), title)):
+        for ext in exts:
+            path = ydl.prepare_filename({**info, "title": name, "ext": ext})
+            if os.path.isfile(path):
+                return path
     return None
 
 
@@ -1247,6 +1319,7 @@ def _run_extract_job(job_id: str, videos: list, audio_format: str, output_dir: s
             # Added here rather than in opts: yt-dlp only builds its own
             # postprocessors from opts. Each lands at the end of its stage.
             ydl.add_post_processor(ExistingFileGuardPP(ydl, exts, folder_ids), when="pre_process")
+            ydl.add_post_processor(CleanTitlePP(ydl), when="pre_process")
             ydl.add_post_processor(MusicTagsPP(ydl), when="pre_process")
             if embed_artwork:
                 ydl.add_post_processor(SquareCoverPP(ydl), when="before_dl")

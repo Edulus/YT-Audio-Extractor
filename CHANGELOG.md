@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.7.0] - 2026-10-30
+### Added
+- Cleaner track names: words that describe the YouTube upload, such as
+  "(Official Video)", "(Official Audio)", "(Visualizer)", "| Official Video"
+  "(Video Edit)" or "[4K]", are taken out of the file name and the title
+  tag. Words that identify a version stay: "(Official Remix)", "(Radio
+  Edit)", "(Original Mix)". Tracks saved under the old, longer name still
+  count as already had.
+- `Clean-Audio-Filenames.ps1` applies the same rules to files already saved.
+  It previews by default, renames only with `-Apply`, never overwrites a
+  file, and saves a CSV of old and new names. Tags are not changed.
+
+## [4.6.0] - 2026-10-29
+### Added
+- A cycle dial under the theme presets (the rainbow ring). Picking it
+  glides the colours from preset to preset in spectrum order, always moving
+  forward round the colour wheel, resting a few seconds on each one. The
+  sliders follow along. Moving a slider, picking a preset or resetting
+  stops it at that colour; a reload carries on cycling.
+
+### Fixed
+- `.bat` and `.ps1` scripts keep Windows (CRLF) line endings in the zip
+  download too, via `.gitattributes`.
+
 ## [4.5.0] - 2026-10-29
 ### Added
 - Nothing to install first: the launcher now downloads its own private

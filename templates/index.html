@@ -763,6 +763,9 @@
       background: var(--dial-accent);
       box-shadow: 0 0 6px var(--dial-accent);
     }
+    /* Cycle dial: a ring of the preset accents, centre dot is the live accent. */
+    .dial.cycle { grid-column: 1 / -1; justify-self: center; }   /* own row, centred under both columns */
+    .dial.cycle .face::after { box-shadow: 0 0 0 3px var(--bg-elev), 0 0 8px var(--dial-accent); }
     .dial:hover .face { transform: scale(1.12); }
     .dial input:checked + .face {
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14),
@@ -788,7 +791,8 @@
       .theme-label { writing-mode: horizontal-tb; transform: none; height: auto; }
       .theme-slider .theme-label { width: 84px; }
       .theme-presets { flex-direction: row; }
-      .preset-dials { grid-template-columns: repeat(6, 24px); }
+      .preset-dials { grid-template-columns: repeat(7, 24px); }
+      .dial.cycle { grid-column: auto; }
       .theme-slider input[type=range] {
         writing-mode: horizontal-tb;
         direction: ltr;
@@ -898,6 +902,12 @@
 
     function applyTheme({ accent, bg }) {
       const [h, sat] = bgTint(bg);
+      applyColours(accent, h, sat);
+    }
+
+    // Accent hue plus background hue and saturation. The cycle dial calls
+    // this directly to glide between presets.
+    function applyColours(accent, h, sat) {
       const root = document.documentElement.style;
       root.setProperty('--accent', hsl(accent, 100, 56));
       root.setProperty('--accent-rgb', hslToRgb(accent, 100, 56).join(', '));
@@ -949,7 +959,7 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and playlists</p>
       </div>
-      <span class="tag">v4.5</span>
+      <span class="tag">v4.7</span>
     </header>
 
     <!-- Search -->
@@ -1045,7 +1055,7 @@
         <a href="https://ffmpeg.org" target="_blank" rel="noopener noreferrer">FFmpeg</a>.
       </p>
       <p>
-        v4.5 &middot;
+        v4.7 &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
         &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
@@ -1076,32 +1086,100 @@
 
       const swatchBg = (v) => { const [h, sat] = bgTint(v); return hsl(h, sat * 1.3, 18); };
 
-      const presetInputs = THEME_PRESETS.map((preset, i) => {
+      function makeDial(name, dialBg, dialAccent, onPick) {
         const label = document.createElement('label');
         label.className = 'dial';
-        label.title = preset.name;
-        label.style.setProperty('--dial-bg', swatchBg(preset.bg));
-        label.style.setProperty('--dial-accent', hsl(preset.accent, 100, 56));
+        label.title = name;
+        label.style.setProperty('--dial-bg', dialBg);
+        label.style.setProperty('--dial-accent', dialAccent);
         const input = document.createElement('input');
         input.type = 'radio';
         input.name = 'theme-preset';
-        input.value = i;
-        input.setAttribute('aria-label', preset.name);
-        input.addEventListener('change', () => {
-          theme = { accent: preset.accent, bg: preset.bg };
-          show();
-          save();
-        });
+        input.setAttribute('aria-label', name);
+        input.addEventListener('change', onPick);
         const face = document.createElement('span');
         face.className = 'face';
         label.appendChild(input);
         label.appendChild(face);
         presetsEl.appendChild(label);
         return input;
-      });
+      }
+
+      const presetInputs = THEME_PRESETS.map((preset) =>
+        makeDial(preset.name, swatchBg(preset.bg), hsl(preset.accent, 100, 56), () => {
+          theme = { accent: preset.accent, bg: preset.bg };
+          show();
+          save();
+        }));
+
+      // Cycle dial: glides from preset to preset in spectrum order (by accent
+      // hue, always moving forward round the colour wheel), resting on each
+      // one for a few seconds. Moving a slider or picking a preset stops it.
+      const SPECTRUM = [...THEME_PRESETS].sort((a, b) => a.accent - b.accent);
+      const GLIDE_MS = 4000;
+      const HOLD_MS = 4000;
+      const cycleInput = makeDial('Cycle through the presets',
+        `conic-gradient(${[...SPECTRUM, SPECTRUM[0]].map(p => hsl(p.accent, 100, 56)).join(', ')})`,
+        'var(--accent)', () => {
+          theme = { ...theme, cycle: true };
+          show();
+          save();
+        });
+      cycleInput.parentElement.classList.add('cycle');
+
+      let cycleFrame = null;
+      function stopCycle() {
+        if (cycleFrame !== null) cancelAnimationFrame(cycleFrame);
+        cycleFrame = null;
+      }
+      function startCycle() {
+        if (cycleFrame !== null) return;
+        const colours = (t) => { const [h, sat] = bgTint(t.bg); return { accent: t.accent, h, sat }; };
+        // First glide: from the current colours to the next preset along the
+        // wheel, so starting never jumps.
+        let from = colours(theme);
+        let next = SPECTRUM.findIndex(p => p.accent > theme.accent);
+        if (next < 0) next = 0;
+        let to = colours(SPECTRUM[next]);
+        let start = performance.now();
+        const ease = (k) => 0.5 - Math.cos(Math.PI * k) / 2;
+        const step = (now) => {
+          let t = now - start;
+          if (t >= GLIDE_MS + HOLD_MS) {
+            from = to;
+            next = (next + 1) % SPECTRUM.length;
+            to = colours(SPECTRUM[next]);
+            start = now;
+            t = 0;
+          }
+          const k = ease(Math.min(t / GLIDE_MS, 1));
+          const accent = (from.accent + ((to.accent - from.accent + 360) % 360) * k) % 360;
+          const h = (from.h + (((to.h - from.h + 540) % 360) - 180) * k + 360) % 360;
+          const sat = from.sat + (to.sat - from.sat) * k;
+          applyColours(accent, h, sat);
+          accentEl.value = accent;
+          bgEl.value = sat < 21 ? 0 : h + BG_NEUTRAL_END;
+          accentEl.style.setProperty('--thumb', hsl(accent, 100, 56));
+          bgEl.style.setProperty('--thumb', hsl(h, sat * 1.3, 18));
+          if (k === 1 && theme.accent !== SPECTRUM[next].accent) {
+            // Arrived: remember this preset, so a reload resumes from here.
+            theme = { accent: SPECTRUM[next].accent, bg: SPECTRUM[next].bg, cycle: true };
+            save();
+          }
+          cycleFrame = requestAnimationFrame(step);
+        };
+        cycleFrame = requestAnimationFrame(step);
+      }
 
       let theme = savedTheme();
       function show() {
+        cycleInput.checked = !!theme.cycle;
+        if (theme.cycle) {
+          presetInputs.forEach(input => { input.checked = false; });
+          startCycle();
+          return;
+        }
+        stopCycle();
         accentEl.value = theme.accent;
         bgEl.value = theme.bg;
         accentEl.style.setProperty('--thumb', hsl(theme.accent, 100, 56));
@@ -1117,8 +1195,13 @@
       function save() {
         try { localStorage.setItem(THEME_KEY, JSON.stringify(theme)); } catch { /* applied, just not remembered */ }
       }
-      accentEl.addEventListener('input', () => { theme.accent = Number(accentEl.value); show(); });
-      bgEl.addEventListener('input', () => { theme.bg = Number(bgEl.value); show(); });
+      // A slider takes over from the cycle at whatever colour it had reached.
+      const fromSlider = () => {
+        theme = { accent: Math.round(Number(accentEl.value)), bg: Math.round(Number(bgEl.value)) };
+        show();
+      };
+      accentEl.addEventListener('input', fromSlider);
+      bgEl.addEventListener('input', fromSlider);
       accentEl.addEventListener('change', save);
       bgEl.addEventListener('change', save);
       document.getElementById('theme-reset').addEventListener('click', () => {

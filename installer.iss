@@ -14,7 +14,7 @@
 ; ============================================================================
 
 #define AppName "YT Audio Extractor"
-#define AppVersion "4.5"
+#define AppVersion "4.7"
 #define AppPublisher "Edward Kasimir"
 #define AppURL "https://github.com/Edulus/YT-Audio-Extractor"
 #define AppExeName "YT-Audio-Extractor.bat"
@@ -58,6 +58,7 @@ Source: "app.py";                    DestDir: "{app}"; Flags: ignoreversion
 Source: "requirements.txt";          DestDir: "{app}"; Flags: ignoreversion
 Source: "YT-Audio-Extractor.bat";    DestDir: "{app}"; Flags: ignoreversion
 Source: "fetch-binaries.ps1";        DestDir: "{app}"; Flags: ignoreversion
+Source: "Clean-Audio-Filenames.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "YT-Audio-Extractor.ico";    DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md";                 DestDir: "{app}"; Flags: ignoreversion
 Source: "CHANGELOG.md";              DestDir: "{app}"; Flags: ignoreversion
