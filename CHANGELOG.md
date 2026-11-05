@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.9.0] - 2026-11-05
+### Changed
+- The subtitle under the title now reads "extract audio from YouTube
+  videos and/or playlists".
+- Footer: credited to Edulus, the source code link on its own line, and a
+  new line in the Terms of Service note.
+
 ## [4.8.0] - 2026-11-05
 ### Added
 - An aurora background: slow curtains of light in the accent colour drift
