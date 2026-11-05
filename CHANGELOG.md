@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.8.0] - 2026-11-05
+### Added
+- An aurora background: slow curtains of light in the accent colour drift
+  behind the page. It never takes clicks, draws at a quarter of the
+  window's resolution and at most 30 frames a second, pauses while the tab
+  is hidden, and follows the theme (including the cycle dial). Without
+  WebGL the page keeps its plain background.
+
 ## [4.7.0] - 2026-10-30
 ### Added
 - Cleaner track names: words that describe the YouTube upload, such as

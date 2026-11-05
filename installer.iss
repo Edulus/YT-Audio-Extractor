@@ -14,7 +14,7 @@
 ; ============================================================================
 
 #define AppName "YT Audio Extractor"
-#define AppVersion "4.7"
+#define AppVersion "4.8"
 #define AppPublisher "Edward Kasimir"
 #define AppURL "https://github.com/Edulus/YT-Audio-Extractor"
 #define AppExeName "YT-Audio-Extractor.bat"
