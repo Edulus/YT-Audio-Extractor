@@ -6,8 +6,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - The subtitle under the title now reads "extract audio from YouTube
   videos and/or playlists".
-- Footer: credited to Edulus, the source code link on its own line, and a
-  new line in the Terms of Service note.
+- Footer: credited to Edulus; source code, engine, version, changelog and
+  license share one line; a new line in the Terms of Service note.
 
 ## [4.8.0] - 2026-11-05
 ### Added
