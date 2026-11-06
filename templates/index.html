@@ -217,6 +217,24 @@
       border-color: var(--accent);
       color: var(--accent);
     }
+    .result .yt-link {
+      align-self: flex-start;
+      flex-shrink: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      color: var(--text-dim);
+      text-decoration: none;
+      border-bottom: 1px dotted var(--border-strong);
+    }
+    .result .yt-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+    .result .date {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-faint);
+      letter-spacing: 0.04em;
+    }
     /* ---- Results ---- */
     .results-header {
       display: flex;
@@ -370,6 +388,226 @@
       0%, 100% { opacity: 1; }
       50%      { opacity: 0.5; }
     }
+    /* While a preview is loaded, search and Now Playing stick to the top of
+       the window together; the search hint is left out to save room. */
+    .top-dock.docked {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      margin-bottom: 20px;
+      padding-top: 14px;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(10px);
+    }
+    .top-dock.docked .search-hint { display: none; }
+    .top-dock.docked section.block { margin-bottom: 14px; }
+    .now-playing {
+      padding: 12px 16px 14px;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 0 18px rgba(var(--accent-rgb), 0.12);
+    }
+    .now-playing .section-label { margin: 0 0 8px; }
+    .np-track { display: flex; align-items: center; gap: 12px; }
+    .np-check {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .np-thumb {
+      width: 64px;
+      height: 36px;
+      flex-shrink: 0;
+      object-fit: cover;
+      border-radius: 4px;
+      background: var(--bg-elev);
+    }
+    .np-info { flex: 1; min-width: 0; }
+    .np-title {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .np-title:hover { color: var(--accent); }
+    .np-sub { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+    .play-btn.np-play { width: 32px; height: 32px; flex-shrink: 0; }
+    .play-btn.np-play .icon { width: 12px; height: 12px; }
+    .np-close {
+      width: 26px;
+      height: 26px;
+      flex-shrink: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .np-close:hover { color: var(--accent); background: var(--bg-elev); }
+    .np-next {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+    }
+    .np-next:hover { border-color: var(--accent); background: var(--accent-dim); }
+    .np-next .icon { width: 10px; height: 10px; }
+
+    /* Queues: To Play and To Extract, side by side. */
+    .tq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tq-box {
+      min-width: 0;
+      padding: 10px 12px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .tq-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .tq-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .tq-count { color: var(--accent); margin-left: 4px; }
+    .tq-clear {
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .tq-clear:hover { color: var(--accent); border-color: var(--accent); }
+    .tq-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .tq-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+    .tq-item + .tq-item { border-top: 1px solid var(--border); }
+    .tq-item img { width: 40px; height: 22px; flex-shrink: 0; object-fit: cover; border-radius: 3px; background: var(--bg-elev-2); }
+    .tq-item .q-title {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .tq-item button {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .tq-item button:hover { color: var(--accent); background: var(--bg-elev-2); }
+    .tq-item .icon { width: 9px; height: 9px; }
+    .tq-empty { margin: 4px 0 2px; font-size: 12px; color: var(--text-faint); }
+    .tq-box.has-items .tq-empty { display: none; }
+    .tq-box:not(.has-items) .tq-clear { visibility: hidden; }
+    @media (max-width: 640px) { .tq-grid { grid-template-columns: 1fr; } }
+
+    /* "+" beside a result's play button: add to or remove from To Play. */
+    .queue-btn {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .queue-btn:hover { border-color: var(--accent); background: var(--accent-dim); }
+    .queue-btn.queued { border-color: var(--accent); background: var(--accent-dim); }
+
+    /* Preview controls inside the Now Playing panel. */
+    .preview-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .preview-bar .time { min-width: 34px; text-align: center; font-variant-numeric: tabular-nums; }
+    .preview-bar input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      margin: 0;
+      border-radius: 2px;
+      background: linear-gradient(to right, var(--accent) var(--pct, 0%), var(--border-strong) var(--pct, 0%));
+      cursor: pointer;
+    }
+    .preview-bar .seek { flex: 1; min-width: 80px; }
+    .preview-bar .volume { width: 70px; flex: none; }
+    .preview-bar input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.6);
+    }
+    .preview-bar input[type=range]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .preview-bar .mute {
+      display: inline-flex;
+      padding: 2px;
+      border: 0;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+    .preview-bar .mute:hover { color: var(--accent); }
+    .preview-bar .mute .icon { width: 14px; height: 14px; }
+    .preview-bar .mute .cross { display: none; }
+    .preview-bar .mute.muted .cross { display: inline; }
+    .preview-bar .mute.muted .wave { display: none; }
     .play-btn .icon {
       display: block;
       width: 10px;
@@ -978,6 +1216,9 @@
       <span class="tag">v4.9</span>
     </header>
 
+    <!-- Search and Now Playing: they stick to the top together while a
+         preview is loaded, so the search box stays reachable. -->
+    <div class="top-dock" id="top-dock">
     <!-- Search -->
     <section class="block">
       <p class="section-label">// Search</p>
@@ -1006,6 +1247,26 @@
       <div id="search-status"></div>
     </section>
 
+    <!-- Now playing: the previewed track, kept on screen across searches -->
+    <section id="now-playing" class="block now-playing hidden" aria-label="Now playing">
+      <p class="section-label">// Now Playing</p>
+      <div class="np-track">
+        <input type="checkbox" class="np-check" title="Select for extraction" aria-label="Select for extraction">
+        <img class="np-thumb" alt="" referrerpolicy="no-referrer">
+        <div class="np-info">
+          <a class="np-title" target="_blank" rel="noopener"></a>
+          <div class="np-sub"></div>
+        </div>
+        <button type="button" class="play-btn np-play" aria-label="Play or pause preview"></button>
+        <button type="button" class="np-next hidden" title="Play the next track in the To Play queue" aria-label="Next track">
+          <svg class="icon" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M1.5 1.5 L6.5 5 L1.5 8.5 Z"/><rect x="7" y="1.5" width="1.6" height="7"/></svg>
+        </button>
+        <button type="button" class="np-close" title="Stop preview" aria-label="Stop preview">&times;</button>
+      </div>
+      <div id="np-controls"></div>
+    </section>
+    </div>
+
     <!-- Audio settings -->
     <section class="block">
       <p class="section-label">// Audio Settings</p>
@@ -1019,6 +1280,29 @@
             <button type="button" class="toggle" data-value="flac">FLAC</button>
             <button type="button" class="toggle" data-value="wav">WAV</button>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Queues: kept across searches and reloads -->
+    <section class="block">
+      <p class="section-label">// Queues</p>
+      <div class="tq-grid">
+        <div class="tq-box" id="play-queue">
+          <div class="tq-head">
+            <span class="tq-title">To Play <span class="tq-count">0</span></span>
+            <button type="button" class="tq-clear">Clear</button>
+          </div>
+          <ol class="tq-list"></ol>
+          <p class="tq-empty">Click <b>+</b> on a result to queue it for playing.</p>
+        </div>
+        <div class="tq-box" id="extract-queue">
+          <div class="tq-head">
+            <span class="tq-title">To Extract <span class="tq-count">0</span></span>
+            <button type="button" class="tq-clear">Clear</button>
+          </div>
+          <ol class="tq-list"></ol>
+          <p class="tq-empty">Tick a result to add it here, from any search.</p>
         </div>
       </div>
     </section>
@@ -1344,7 +1628,9 @@
     // -------------------- State --------------------
     const state = {
       results: [],
-      selectedIds: new Set(),
+      selectedIds: new Set(),     // ids in the To Extract queue
+      selectedTracks: new Map(),  // id -> track, the To Extract queue (kept across searches)
+      playQueue: [],              // To Play: tracks to preview after the current one
       sort: { key: 'order', dir: 'asc' },  // results order: key from SORT_KEYS, asc or desc
       format: 'best',
       jobId: null,
@@ -1359,6 +1645,7 @@
       previewVid: null,        // id of the currently-playing video, or null
       previewBtn: null,        // the DOM button currently in playing/loading state
       previewToken: 0,         // monotonically increasing — used to ignore stale fetches
+      previewTrack: null,      // the result shown in Now Playing
     };
 
     // -------------------- Elements --------------------
@@ -1400,30 +1687,161 @@
       btn.innerHTML = PLAY_ICON;
       btn.title = 'Loading...';
     }
+    // Now Playing panel: the previewed track sits above the results, stays on
+    // screen while scrolling, and outlives new searches. The row's own play
+    // button (while that row is listed) mirrors the panel's.
+    const np = {
+      section: document.getElementById('now-playing'),
+      thumb: document.querySelector('#now-playing .np-thumb'),
+      title: document.querySelector('#now-playing .np-title'),
+      sub: document.querySelector('#now-playing .np-sub'),
+      btn: document.querySelector('#now-playing .np-play'),
+      dock: document.getElementById('top-dock'),
+      check: document.querySelector('#now-playing .np-check'),
+    };
+    // Same selection as the track's row, and it carries over to new searches.
+    np.check.addEventListener('change', () => {
+      if (state.previewVid) toggleSelect(state.previewVid, np.check.checked);
+    });
+    np.thumb.addEventListener('error', () => { np.thumb.style.visibility = 'hidden'; });
+    function eachPreviewBtn(fn) {
+      fn(state.previewBtn);
+      fn(np.btn);
+    }
+    function showNowPlaying(track) {
+      np.thumb.style.visibility = '';
+      np.thumb.src = track.thumbnail || '';
+      np.title.textContent = track.title || '(untitled)';
+      np.title.href = track.url || `https://www.youtube.com/watch?v=${track.id}`;
+      np.sub.textContent = track.uploader || '';
+      np.check.checked = state.selectedIds.has(track.id);
+      np.section.classList.remove('hidden');
+      np.dock.classList.add('docked');
+    }
+    np.btn.addEventListener('click', () => {
+      if (state.previewTrack) togglePreview(state.previewTrack, state.previewBtn);
+    });
+    document.querySelector('#now-playing .np-close').addEventListener('click', () => stopPreview());
+
+    // Controls: time, a seek bar, and a volume slider (remembered between
+    // visits).
+    const VOLUME_KEY = 'yt-audio-preview-volume';
+    const previewBar = document.createElement('div');
+    previewBar.className = 'preview-bar';
+    previewBar.innerHTML = `
+      <span class="time cur">0:00</span>
+      <input type="range" class="seek" min="0" max="0" step="0.1" value="0" aria-label="Preview position">
+      <span class="time dur">0:00</span>
+      <button type="button" class="mute" title="Mute" aria-label="Mute">
+        <svg class="icon" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M1 4.3h2.2L6.2 1.8v8.4L3.2 7.7H1z" fill="currentColor"/>
+          <path class="wave" d="M8 3.8a3 3 0 0 1 0 4.4M9.5 2.4a5 5 0 0 1 0 7.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+          <path class="cross" d="M8.2 4.4l3 3.2M11.2 4.4l-3 3.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <input type="range" class="volume" min="0" max="1" step="0.01" aria-label="Preview volume">`;
+    const seekEl = previewBar.querySelector('.seek');
+    const volumeEl = previewBar.querySelector('.volume');
+    const muteEl = previewBar.querySelector('.mute');
+    const curEl = previewBar.querySelector('.cur');
+    const durEl = previewBar.querySelector('.dur');
+    let seeking = false;
+    document.getElementById('np-controls').appendChild(previewBar);
+    clearPreviewBtnState(np.btn);
+
+    function formatClock(s) {
+      if (!Number.isFinite(s)) return '0:00';
+      s = Math.floor(s);
+      const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = String(s % 60).padStart(2, '0');
+      return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+    }
+    function setFill(input) {
+      const span = Number(input.max) - Number(input.min);
+      input.style.setProperty('--pct', span > 0 ? `${(input.value - input.min) / span * 100}%` : '0%');
+    }
+    function showDuration() {
+      const d = els.previewAudio.duration;
+      if (!Number.isFinite(d)) return;
+      seekEl.max = d;
+      durEl.textContent = formatClock(Math.round(d));  // as YouTube lists it
+      setFill(seekEl);
+    }
+    function showPosition() {
+      if (seeking) return;
+      seekEl.value = els.previewAudio.currentTime;
+      curEl.textContent = formatClock(els.previewAudio.currentTime);
+      setFill(seekEl);
+    }
+
+    seekEl.addEventListener('pointerdown', () => { seeking = true; });
+    seekEl.addEventListener('input', () => {
+      els.previewAudio.currentTime = Number(seekEl.value);
+      curEl.textContent = formatClock(Number(seekEl.value));
+      setFill(seekEl);
+    });
+    seekEl.addEventListener('change', () => { seeking = false; });
+    seekEl.addEventListener('pointerup', () => { seeking = false; });
+
+    let savedVolume = 0.8;
+    try {
+      const v = parseFloat(localStorage.getItem(VOLUME_KEY));
+      if (v >= 0 && v <= 1) savedVolume = v;
+    } catch { /* default volume */ }
+    els.previewAudio.volume = savedVolume;
+    volumeEl.value = savedVolume;
+    setFill(volumeEl);
+    volumeEl.addEventListener('input', () => {
+      els.previewAudio.volume = Number(volumeEl.value);
+      els.previewAudio.muted = false;
+      muteEl.classList.remove('muted');
+      setFill(volumeEl);
+      try { localStorage.setItem(VOLUME_KEY, volumeEl.value); } catch { /* not remembered */ }
+    });
+    muteEl.addEventListener('click', () => {
+      els.previewAudio.muted = !els.previewAudio.muted;
+      muteEl.classList.toggle('muted', els.previewAudio.muted);
+      muteEl.title = els.previewAudio.muted ? 'Unmute' : 'Mute';
+    });
+
+    els.previewAudio.addEventListener('loadedmetadata', showDuration);
+    els.previewAudio.addEventListener('durationchange', showDuration);
+    els.previewAudio.addEventListener('timeupdate', showPosition);
+
     function stopPreview() {
       els.previewAudio.pause();
       els.previewAudio.removeAttribute('src');
       els.previewAudio.load();
-      clearPreviewBtnState(state.previewBtn);
+      eachPreviewBtn(clearPreviewBtnState);
       state.previewBtn = null;
       state.previewVid = null;
+      state.previewTrack = null;
+      np.section.classList.add('hidden');
+      np.dock.classList.remove('docked');
+      seekEl.max = 0;
+      seekEl.value = 0;
+      setFill(seekEl);
+      curEl.textContent = durEl.textContent = '0:00';
     }
 
-    async function togglePreview(videoId, btn) {
-      // Click on the currently-playing button → pause/stop
-      if (state.previewVid === videoId && !els.previewAudio.paused) {
-        stopPreview();
+    // track: a search result ({id, title, uploader, thumbnail, url}).
+    async function togglePreview(track, btn) {
+      const videoId = track.id;
+      // Same track: pause, or carry on from where it was paused. While its
+      // link is still loading (no src yet), a click does nothing.
+      if (state.previewVid === videoId) {
+        if (!els.previewAudio.paused) els.previewAudio.pause();
+        else if (els.previewAudio.getAttribute('src')) els.previewAudio.play().catch(() => {});
         return;
       }
       // Switching from another preview → stop the old one first
-      if (state.previewVid && state.previewVid !== videoId) {
-        stopPreview();
-      }
+      if (state.previewVid) stopPreview();
 
       const myToken = ++state.previewToken;
       state.previewBtn = btn;
       state.previewVid = videoId;
-      markPreviewBtnLoading(btn);
+      state.previewTrack = track;
+      showNowPlaying(track);
+      eachPreviewBtn(markPreviewBtnLoading);
 
       try {
         const res = await fetch(`/api/preview/${encodeURIComponent(videoId)}`);
@@ -1431,21 +1849,17 @@
         // If user clicked another preview while we were waiting, drop the result.
         if (myToken !== state.previewToken) return;
         if (!res.ok || !data.url) {
-          clearPreviewBtnState(btn);
-          state.previewBtn = null;
-          state.previewVid = null;
+          stopPreview();
           alert(data.error || 'Could not load audio preview.');
           return;
         }
         els.previewAudio.src = data.url;
         await els.previewAudio.play();
-        // 'playing' event handler will mark the button; fallback in case event misses:
-        markPreviewBtnPlaying(btn);
+        // 'playing' event handler will mark the buttons; fallback in case event misses:
+        eachPreviewBtn(markPreviewBtnPlaying);
       } catch (err) {
         if (myToken !== state.previewToken) return;
-        clearPreviewBtnState(btn);
-        state.previewBtn = null;
-        state.previewVid = null;
+        stopPreview();
         alert(`Could not play preview: ${err.message}`);
       }
     }
@@ -1454,23 +1868,176 @@
 
     // Audio element lifecycle → keep the button state honest.
     els.previewAudio.addEventListener('playing', () => {
-      if (state.previewBtn) markPreviewBtnPlaying(state.previewBtn);
+      if (state.previewVid) eachPreviewBtn(markPreviewBtnPlaying);
     });
     els.previewAudio.addEventListener('pause', () => {
-      // Don't clobber the button if .pause was triggered as part of stopPreview()
-      // (in which case state.previewBtn is already nulled).
-      if (state.previewBtn) clearPreviewBtnState(state.previewBtn);
+      if (state.previewVid) eachPreviewBtn(clearPreviewBtnState);
     });
+    // Finished: the next track in the To Play queue plays. With nothing queued, the
+    // track stays in Now Playing, back at the start, ready to play again.
     els.previewAudio.addEventListener('ended', () => {
-      stopPreview();
+      if (playNext()) return;
+      eachPreviewBtn(clearPreviewBtnState);
+      els.previewAudio.currentTime = 0;
     });
     els.previewAudio.addEventListener('error', () => {
-      if (state.previewBtn) {
-        clearPreviewBtnState(state.previewBtn);
-        state.previewBtn = null;
-        state.previewVid = null;
-      }
+      // Only a real failure: stopPreview() empties src, which isn't one.
+      if (state.previewVid && els.previewAudio.getAttribute('src')) stopPreview();
     });
+
+    // -------------------- Queues --------------------
+    // To Play (tracks to preview after the current one) and To Extract
+    // (tracks ticked for extraction). Neither is cleared by a new search,
+    // and both are remembered between visits.
+    const QUEUES_KEY = 'yt-audio-queues-v1';
+    const queueEls = {
+      play: document.getElementById('play-queue'),
+      extract: document.getElementById('extract-queue'),
+    };
+    const npNext = document.querySelector('#now-playing .np-next');
+
+    // What a queue keeps of a result. playlist: the playlist it was found in,
+    // so its tracks still go into that playlist's subfolder.
+    function queueTrack(r) {
+      const fromPlaylist = state.searchMeta && state.searchMeta.type === 'playlist' && state.results.includes(r);
+      return {
+        id: r.id, url: r.url, title: r.title, uploader: r.uploader || '',
+        thumbnail: r.thumbnail || '', duration_string: r.duration_string || '',
+        playlist: r.playlist !== undefined ? r.playlist : (fromPlaylist ? state.searchMeta.title : null),
+      };
+    }
+    function trackById(id) {
+      return state.results.find(r => r.id === id)
+        || (state.previewTrack && state.previewTrack.id === id ? state.previewTrack : null)
+        || state.selectedTracks.get(id)
+        || state.playQueue.find(t => t.id === id)
+        || null;
+    }
+    function rowPlayBtn(id) {
+      return els.resultsContainer.querySelector(`.play-btn[data-vid="${cssEscape(id)}"]`);
+    }
+
+    function saveQueues() {
+      try {
+        localStorage.setItem(QUEUES_KEY, JSON.stringify({
+          play: state.playQueue,
+          extract: [...state.selectedTracks.values()],
+        }));
+      } catch { /* kept for this visit only */ }
+    }
+    (function loadQueues() {
+      try {
+        const q = JSON.parse(localStorage.getItem(QUEUES_KEY));
+        if (!q) return;
+        state.playQueue = (q.play || []).filter(t => t && t.id);
+        (q.extract || []).filter(t => t && t.id).forEach(t => {
+          state.selectedTracks.set(t.id, t);
+          state.selectedIds.add(t.id);
+        });
+      } catch { /* start empty */ }
+    })();
+
+    function queueItem(track, buttons) {
+      const li = document.createElement('li');
+      li.className = 'tq-item';
+      const img = document.createElement('img');
+      img.src = track.thumbnail || '';
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
+      const title = document.createElement('span');
+      title.className = 'q-title';
+      title.textContent = track.title;
+      title.title = [track.title, track.uploader, track.duration_string].filter(Boolean).join(' · ');
+      li.append(img, title);
+      buttons.forEach(([label, html, onClick]) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.title = label;
+        b.setAttribute('aria-label', label);
+        b.innerHTML = html;
+        b.addEventListener('click', onClick);
+        li.appendChild(b);
+      });
+      return li;
+    }
+
+    function renderQueues() {
+      const fill = (el, tracks, buttonsFor) => {
+        const list = el.querySelector('.tq-list');
+        list.innerHTML = '';
+        tracks.forEach(t => list.appendChild(queueItem(t, buttonsFor(t))));
+        el.querySelector('.tq-count').textContent = tracks.length;
+        el.classList.toggle('has-items', tracks.length > 0);
+      };
+      fill(queueEls.play, state.playQueue, t => [
+        ['Play now', PLAY_ICON, () => playFromQueue(t.id)],
+        ['Remove from the To Play queue', '&times;', () => togglePlayQueue(t)],
+      ]);
+      fill(queueEls.extract, [...state.selectedTracks.values()], t => [
+        ['Remove from To Extract', '&times;', () => toggleSelect(t.id, false)],
+      ]);
+      // The "+" buttons on listed results, and the Next button.
+      els.resultsContainer.querySelectorAll('.queue-btn').forEach(b => markQueueBtn(b, b.dataset.vid));
+      npNext.classList.toggle('hidden', state.playQueue.length === 0);
+      // With no results listed, Extract Audio shows only for a queue.
+      if (!state.results.length) els.actions.classList.toggle('hidden', state.selectedIds.size === 0);
+      updateExtractButton();
+    }
+    function markQueueBtn(btn, id) {
+      const queued = state.playQueue.some(t => t.id === id);
+      btn.classList.toggle('queued', queued);
+      btn.textContent = queued ? '✓' : '+';
+      btn.title = queued ? 'In the To Play queue: click to remove' : 'Add to the To Play queue';
+    }
+
+    // Add to To Play, or take it out again. With nothing loaded in Now
+    // Playing, a queued track starts straight away.
+    function togglePlayQueue(r) {
+      const i = state.playQueue.findIndex(t => t.id === r.id);
+      if (i >= 0) state.playQueue.splice(i, 1);
+      else if (!state.previewVid) {
+        togglePreview(r, rowPlayBtn(r.id));
+      } else if (r.id !== state.previewVid) {
+        state.playQueue.push(queueTrack(r));
+      }
+      saveQueues();
+      renderQueues();
+    }
+    function playFromQueue(id) {
+      const i = state.playQueue.findIndex(t => t.id === id);
+      if (i < 0) return;
+      const [track] = state.playQueue.splice(i, 1);
+      saveQueues();
+      renderQueues();
+      if (state.previewVid === track.id) {
+        els.previewAudio.currentTime = 0;
+        els.previewAudio.play().catch(() => {});
+      } else {
+        togglePreview(track, rowPlayBtn(track.id));
+      }
+    }
+    // Plays the first track in To Play; false if the queue is empty.
+    function playNext() {
+      if (!state.playQueue.length) return false;
+      playFromQueue(state.playQueue[0].id);
+      return true;
+    }
+    npNext.addEventListener('click', () => playNext());
+    queueEls.play.querySelector('.tq-clear').addEventListener('click', () => {
+      state.playQueue = [];
+      saveQueues();
+      renderQueues();
+    });
+    queueEls.extract.querySelector('.tq-clear').addEventListener('click', () => {
+      state.selectedIds.clear();
+      state.selectedTracks.clear();
+      saveQueues();
+      renderResults();
+      renderQueues();
+      updateExtractButton();
+    });
+    renderQueues();
 
     // -------------------- Toggles --------------------
     document.querySelectorAll('.toggle-group').forEach(group => {
@@ -1507,7 +2074,6 @@
       state.searchQuery = query;
       state.searchOffset = 0;
       state.searchHasMore = false;
-      state.selectedIds.clear();
       renderResults();
       // Keep an active job's progress visible while searching.
       if (!state.jobActive) resetJobUI();
@@ -1529,9 +2095,9 @@
         state.searchMeta = data;
         state.searchOffset = state.results.length;
         state.searchHasMore = data.has_more || false;
-        state.selectedIds.clear();
         clearSearchStatus();
         renderResults();
+        fetchUploadDates(state.results);
       } catch (err) {
         setSearchStatus(`<div class="error" style="margin-top:14px;">Network error: ${escapeHtml(err.message)}</div>`);
       } finally {
@@ -1547,6 +2113,34 @@
       if (e.key === 'Enter') doSearch();
     });
 
+    // Search results carry no upload date, so it is looked up per video
+    // after the results are shown, ten at a time (a few seconds per ten);
+    // rows and the Date sort update as each batch arrives. null means
+    // YouTube gave none.
+    const DATE_BATCH = 10;
+    async function fetchUploadDates(list) {
+      const ids = list.filter(r => r.id && r.upload_date === undefined).map(r => r.id);
+      for (let i = 0; i < ids.length; i += DATE_BATCH) {
+        try {
+          const res = await fetch('/api/dates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids.slice(i, i + DATE_BATCH) }),
+          });
+          const dates = await res.json();
+          let changed = false;
+          state.results.forEach(r => {
+            if (r.id in dates && r.upload_date === undefined) { r.upload_date = dates[r.id]; changed = true; }
+          });
+          if (changed) renderResults();
+        } catch { return; /* dates are optional */ }
+      }
+    }
+
+    function formatUploadDate(iso) {
+      return new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
     // -------------------- Results --------------------
     function renderResults() {
       const meta = state.searchMeta;
@@ -1556,7 +2150,9 @@
       if (state.results.length === 0) {
         container.innerHTML = '<div class="empty">No results yet. Search above to begin.</div>';
         els.resultsMeta.textContent = '';
-        els.actions.classList.add('hidden');
+        // Extract Audio stays available for a queue from earlier searches.
+        els.actions.classList.toggle('hidden', state.selectedIds.size === 0);
+        updateExtractButton();
         return;
       }
 
@@ -1627,6 +2223,13 @@
             views.title = `${r.view_count.toLocaleString()} views`;
             dRow.appendChild(views);
           }
+          if (r.upload_date) {
+            const date = document.createElement('span');
+            date.className = 'date';
+            date.textContent = formatUploadDate(r.upload_date);
+            date.title = 'Upload date';
+            dRow.appendChild(date);
+          }
           const playBtn = document.createElement('button');
           playBtn.type = 'button';
           playBtn.className = 'play-btn';
@@ -1636,20 +2239,49 @@
           playBtn.innerHTML = PLAY_ICON;
           playBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            togglePreview(r.id, playBtn);
+            togglePreview(r, playBtn);
           });
           dRow.appendChild(playBtn);
+          const queueBtn = document.createElement('button');
+          queueBtn.type = 'button';
+          queueBtn.className = 'queue-btn';
+          queueBtn.dataset.vid = r.id;
+          markQueueBtn(queueBtn, r.id);
+          queueBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePlayQueue(r);
+          });
+          dRow.appendChild(queueBtn);
           info.appendChild(dRow);
+          // The track in Now Playing: this row's button mirrors it.
+          if (r.id === state.previewVid) {
+            state.previewBtn = playBtn;
+            if (!els.previewAudio.getAttribute('src')) markPreviewBtnLoading(playBtn);
+            else if (!els.previewAudio.paused) markPreviewBtnPlaying(playBtn);
+          }
         }
 
         row.appendChild(cb);
         row.appendChild(thumb);
         row.appendChild(info);
+        // Top right corner: opens the video on YouTube in a new tab.
+        if (r.url) {
+          const yt = document.createElement('a');
+          yt.className = 'yt-link';
+          yt.href = r.url;
+          yt.target = '_blank';
+          yt.rel = 'noopener noreferrer';
+          yt.textContent = 'Open in YouTube ↗';
+          row.appendChild(yt);
+        }
 
         list.appendChild(row);
       });
 
       container.appendChild(list);
+      // A new search: the track plays on in Now Playing, with no row button.
+      if (state.previewBtn && !state.previewBtn.isConnected) state.previewBtn = null;
+      if (state.previewVid) np.check.checked = state.selectedIds.has(state.previewVid);
 
       if (state.searchHasMore) {
         const btn = document.createElement('button');
@@ -1673,10 +2305,12 @@
       { key: 'uploader', label: 'Channel',   dir: 'asc' },
       { key: 'duration', label: 'Duration',  dir: 'asc' },
       { key: 'views',    label: 'Views',     dir: 'desc' },
+      { key: 'date',     label: 'Date',      dir: 'desc' },
     ];
 
     function sortValue(r, key) {
       if (key === 'views') return r.view_count;
+      if (key === 'date') return r.upload_date || null;
       if (key === 'title' || key === 'uploader') return r[key] ? r[key].toLowerCase() : null;
       return r[key];
     }
@@ -1761,6 +2395,7 @@
         state.searchOffset += newResults.length;
         state.searchHasMore = data.has_more || false;
         renderResults();
+        fetchUploadDates(newResults);
       } catch (_err) {
         if (btn) { btn.disabled = false; btn.textContent = 'Load more results'; }
       } finally {
@@ -1768,13 +2403,29 @@
       }
     }
 
+    // Ticking a result adds it to the To Extract queue; unticking removes it.
     function toggleSelect(id, isSelected) {
-      if (isSelected) state.selectedIds.add(id);
-      else state.selectedIds.delete(id);
+      if (isSelected) {
+        const track = trackById(id);
+        if (!track) return;
+        state.selectedIds.add(id);
+        if (!state.selectedTracks.has(id)) state.selectedTracks.set(id, queueTrack(track));
+      } else {
+        state.selectedIds.delete(id);
+        state.selectedTracks.delete(id);
+      }
+      saveQueues();
+      renderQueues();
       const row = els.resultsContainer.querySelector(`.result[data-id="${cssEscape(id)}"]`);
-      if (row) row.classList.toggle('selected', isSelected);
+      if (row) {
+        row.classList.toggle('selected', isSelected);
+        const cb = row.querySelector('.checkbox');
+        if (cb) cb.checked = isSelected;
+      }
+      if (id === state.previewVid) np.check.checked = isSelected;
       updateExtractButton();
     }
+
 
     function updateExtractButton() {
       const n = state.selectedIds.size;
@@ -1788,12 +2439,21 @@
     }
 
     els.selectAllBtn.addEventListener('click', () => {
-      state.results.forEach(r => state.selectedIds.add(r.id));
+      state.results.forEach(r => {
+        state.selectedIds.add(r.id);
+        if (!state.selectedTracks.has(r.id)) state.selectedTracks.set(r.id, queueTrack(r));
+      });
+      saveQueues();
       renderResults();
+      renderQueues();
     });
+    // Empties the whole To Extract queue, earlier searches' picks included.
     els.deselectAllBtn.addEventListener('click', () => {
       state.selectedIds.clear();
+      state.selectedTracks.clear();
+      saveQueues();
       renderResults();
+      renderQueues();
     });
 
     els.extractBtn.addEventListener('click', startExtraction);
@@ -1815,15 +2475,16 @@
     async function startExtraction() {
       if (state.selectedIds.size === 0) return;
 
-      // Build the payload from currently selected results.
-      const selected = state.results.filter(r => state.selectedIds.has(r.id));
+      // Everything in the To Extract queue, from whichever search.
+      const selected = [...state.selectedTracks.values()];
       const payload = {
         videos: selected.map(r => ({ id: r.id, url: r.url, title: r.title })),
         format: state.format,
       };
-      // Tracks from a playlist are saved into a subfolder named after it.
-      if (state.searchMeta && state.searchMeta.type === 'playlist') {
-        payload.playlist = state.searchMeta.title;
+      // Tracks all from one playlist are saved into a subfolder named after it.
+      const playlists = new Set(selected.map(r => r.playlist || ''));
+      if (playlists.size === 1 && selected[0].playlist) {
+        payload.playlist = selected[0].playlist;
       }
 
       // Ask where to save. The server opens a native folder window on this
@@ -1873,6 +2534,12 @@
 
       state.jobId = job.job_id;
       state.jobActive = true;
+      // Handed over to the job: the To Extract queue starts afresh.
+      state.selectedIds.clear();
+      state.selectedTracks.clear();
+      saveQueues();
+      renderResults();
+      renderQueues();
       updateExtractButton();
       state.outputDir = job.output_dir || '';
       renderProgressInitial(selected.length, state.outputDir, notice);

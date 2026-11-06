@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Added
+- Now Playing panel for previews: the track's thumbnail, title and
+  channel, play/pause, a seek bar with times, volume (remembered) and mute,
+  a select box, and a close button. It sits under the search box, and
+  while a preview is loaded the two stick to the top of the window
+  together. A new search doesn't stop the preview; a finished track stays
+  in the panel, rewound, ready to play again.
+- Pause and resume: the play button pauses, and the next click carries on
+  from the same spot.
+- Two queues that survive new searches and reloads. To Play: the "+"
+  beside a result's play button queues it; queued tracks play in turn,
+  with a Next button in Now Playing. To Extract: every ticked result, from
+  any search; Extract Audio takes the whole queue, which empties once the
+  job starts.
+- Upload dates: each result shows its upload date (looked up per video, in
+  batches of ten, after the results appear), and a Date sort button.
+- "Open in YouTube" in the top right corner of each result.
+
+### Changed
+- Searches load 20 results, and "Load more" adds 20 at a time.
+- Deselect All empties the whole To Extract queue.
+
+### Fixed
+- Previews that failed with "no supported source": YouTube refuses a fresh
+  audio link for about a second. The server now checks that a link is
+  served before handing it out, which also replaces a cached link that has
+  stopped working (previously broken for up to 4 hours).
+
 ## [4.9.0] - 2026-11-05
 ### Changed
 - The subtitle under the title now reads "extract audio from YouTube

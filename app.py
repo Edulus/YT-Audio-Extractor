@@ -12,7 +12,10 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 import webbrowser
 
 from flask import Flask, Response, jsonify, render_template, request, send_from_directory
@@ -345,7 +348,7 @@ def index():
     return render_template("index.html")
 
 
-PAGE_SIZE = 10
+PAGE_SIZE = 20
 
 @app.post("/api/search")
 def api_search():
@@ -406,6 +409,46 @@ def api_search():
 
 
 # ---------------------------------------------------------------------------
+# Upload dates (search results don't carry them)
+# ---------------------------------------------------------------------------
+# Looked up per video, a few at a time, after the results are shown. Skipping
+# the JavaScript challenge (only needed for the audio streams) makes each
+# lookup about 1.4 s instead of 3. Found dates are kept for the session.
+
+UPLOAD_DATE_CACHE: dict = {}
+_DATE_LOOKUP_OPTS = {
+    "quiet": True,
+    "no_warnings": True,
+    "skip_download": True,
+    "extractor_args": {"youtube": {"player_skip": ["js"]}},
+}
+
+
+def _upload_date(video_id: str) -> str | None:
+    """'2024-08-04' for a video, or None if YouTube didn't say."""
+    try:
+        with yt_dlp.YoutubeDL({**_DATE_LOOKUP_OPTS, "logger": _SilentLogger()}) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False, process=False)
+    except Exception:  # noqa: BLE001  (private, removed, age-gated: no date)
+        return None
+    d = (info or {}).get("upload_date")
+    return f"{d[:4]}-{d[4:6]}-{d[6:8]}" if d and len(d) == 8 else None
+
+
+@app.post("/api/dates")
+def api_dates():
+    payload = request.get_json(silent=True) or {}
+    ids = [i for i in (payload.get("ids") or []) if isinstance(i, str) and _VIDEO_ID_RE.match(i)][:50]
+    missing = [i for i in ids if i not in UPLOAD_DATE_CACHE]
+    if missing:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for video_id, date in zip(missing, pool.map(_upload_date, missing)):
+                if date:
+                    UPLOAD_DATE_CACHE[video_id] = date
+    return jsonify({i: UPLOAD_DATE_CACHE.get(i) for i in ids})
+
+
+# ---------------------------------------------------------------------------
 # Preview (audio-only stream URL for in-browser playback)
 # ---------------------------------------------------------------------------
 
@@ -463,6 +506,35 @@ def _resolve_audio_stream(video_id: str) -> dict:
     return {"url": stream_url, "mime": mime}
 
 
+_PROBE_HEADERS = {
+    "Range": "bytes=0-0",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+}
+
+
+def _stream_ready(url: str, wait: float) -> bool:
+    """True once YouTube serves the stream at url, trying for up to wait seconds.
+
+    A brand-new link answers 403 for about a second, and a browser handed it
+    in that second refuses the preview outright. An expired link stays 403.
+    """
+    deadline = time.time() + wait
+    while True:
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=_PROBE_HEADERS), timeout=5) as r:
+                if r.status in (200, 206):
+                    return True
+        except urllib.error.HTTPError as exc:
+            if exc.code != 403:
+                return False
+        except OSError:
+            return False
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.3)
+
+
 @app.get("/api/preview/<video_id>")
 def api_preview(video_id: str):
     if not _VIDEO_ID_RE.match(video_id):
@@ -471,8 +543,10 @@ def api_preview(video_id: str):
     now = time.time()
     with PREVIEW_CACHE_LOCK:
         cached = PREVIEW_CACHE.get(video_id)
-        if cached and (now - cached["resolved_at"]) < PREVIEW_CACHE_TTL_SECONDS:
-            return jsonify({"url": cached["url"], "mime": cached["mime"]})
+    # A cached link is used only while YouTube still serves it.
+    if cached and (now - cached["resolved_at"]) < PREVIEW_CACHE_TTL_SECONDS \
+            and _stream_ready(cached["url"], wait=0):
+        return jsonify({"url": cached["url"], "mime": cached["mime"]})
 
     try:
         data = _resolve_audio_stream(video_id)
@@ -480,6 +554,8 @@ def api_preview(video_id: str):
         return jsonify({"error": _humanize_yt_dlp_error(str(exc))}), 400
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": f"Could not resolve audio: {exc}"}), 500
+    if not _stream_ready(data["url"], wait=6):
+        return jsonify({"error": "YouTube didn't serve this preview. Try again in a moment."}), 502
 
     with PREVIEW_CACHE_LOCK:
         PREVIEW_CACHE[video_id] = {**data, "resolved_at": now}
