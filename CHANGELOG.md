@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [4.92.0] - 2026-11-06
 ### Added
 - Now Playing panel for previews: the track's thumbnail, title and
   channel, play/pause, a seek bar with times, volume (remembered) and mute,
@@ -24,6 +24,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Searches load 20 results, and "Load more" adds 20 at a time.
 - Deselect All empties the whole To Extract queue.
+- The Search and Now Playing labels sit above their own boxes, like the
+  other sections.
 
 ### Fixed
 - Previews that failed with "no supported source": YouTube refuses a fresh
