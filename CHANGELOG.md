@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.93.2] - 2026-11-23
+
+### Changed
+- A preview YouTube won't serve no longer pops up an alert. It's retried
+  quietly up to three times, with a note in the Now Playing bar; if it
+  still fails, the track stays in the bar with the reason, and play tries
+  again. A link that stops working mid-track picks up where it stopped.
+
 ## [4.93.1] - 2026-11-23
 
 ### Fixed

@@ -432,6 +432,15 @@
     }
     #np-controls { flex: 1; min-width: 0; }
     .now-playing .preview-bar { margin-top: 0; }
+    .np-msg {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .np-msg.failed { color: var(--accent); }
     .np-track { display: flex; align-items: center; gap: 10px; width: 330px; flex: none; min-width: 0; }
     .np-check {
       width: 18px;
@@ -1681,6 +1690,10 @@
       previewBtn: null,        // the DOM button currently in playing/loading state
       previewToken: 0,         // monotonically increasing — used to ignore stale fetches
       previewTrack: null,      // the result shown in Now Playing
+      previewFailed: false,    // its link failed: the play button tries again
+      resumeAt: 0,             // where to carry on from after a failed link
+      previewLoading: false,   // loadPreview() is fetching or starting a link
+      lastTime: 0,             // last position played, kept if the link fails
     };
 
     // -------------------- Elements --------------------
@@ -1783,6 +1796,21 @@
     const durEl = previewBar.querySelector('.dur');
     let seeking = false;
     document.getElementById('np-controls').appendChild(previewBar);
+    // A note in place of the controls: retrying, or why a preview failed.
+    const npMsg = document.createElement('div');
+    npMsg.className = 'np-msg hidden';
+    npMsg.setAttribute('role', 'status');
+    document.getElementById('np-controls').appendChild(npMsg);
+    function showPreviewMessage(text, isError = false) {
+      npMsg.textContent = text;
+      npMsg.classList.toggle('failed', isError);
+      npMsg.classList.remove('hidden');
+      previewBar.classList.add('hidden');
+    }
+    function clearPreviewMessage() {
+      npMsg.classList.add('hidden');
+      previewBar.classList.remove('hidden');
+    }
     clearPreviewBtnState(np.btn);
 
     function formatClock(s) {
@@ -1844,6 +1872,8 @@
     els.previewAudio.addEventListener('timeupdate', showPosition);
 
     function stopPreview() {
+      state.previewToken++;  // a link still loading is dropped
+      state.previewLoading = false;
       els.previewAudio.pause();
       els.previewAudio.removeAttribute('src');
       els.previewAudio.load();
@@ -1851,6 +1881,9 @@
       state.previewBtn = null;
       state.previewVid = null;
       state.previewTrack = null;
+      state.previewFailed = false;
+      state.resumeAt = 0;
+      clearPreviewMessage();
       np.section.classList.add('hidden');
       document.body.classList.remove('np-open');
       np.dock.classList.remove('docked');
@@ -1861,11 +1894,13 @@
     }
 
     // track: a search result ({id, title, uploader, thumbnail, url}).
-    async function togglePreview(track, btn) {
+    function togglePreview(track, btn) {
       const videoId = track.id;
-      // Same track: pause, or carry on from where it was paused. While its
-      // link is still loading (no src yet), a click does nothing.
       if (state.previewVid === videoId) {
+        // Its link failed: try again, from where it stopped.
+        if (state.previewFailed) { loadPreview(track, state.resumeAt); return; }
+        // Pause, or carry on from where it was paused. While its link is
+        // still loading (no src yet), a click does nothing.
         if (!els.previewAudio.paused) els.previewAudio.pause();
         else if (els.previewAudio.getAttribute('src')) els.previewAudio.play().catch(() => {});
         return;
@@ -1873,32 +1908,75 @@
       // Switching from another preview → stop the old one first
       if (state.previewVid) stopPreview();
 
-      const myToken = ++state.previewToken;
       state.previewBtn = btn;
       state.previewVid = videoId;
       state.previewTrack = track;
       showNowPlaying(track);
-      eachPreviewBtn(markPreviewBtnLoading);
+      loadPreview(track, 0);
+    }
 
+    // YouTube sometimes won't serve a fresh link for a few seconds, so a
+    // failed fetch is retried quietly before the bar says anything.
+    const PREVIEW_ATTEMPTS = 3;
+    async function loadPreview(track, startAt) {
+      const myToken = ++state.previewToken;
+      state.previewFailed = false;
+      state.lastTime = startAt || 0;
+      clearPreviewMessage();
+      eachPreviewBtn(markPreviewBtnLoading);
+      state.previewLoading = true;
       try {
-        const res = await fetch(`/api/preview/${encodeURIComponent(videoId)}`);
-        const data = await res.json().catch(() => ({}));
-        // If user clicked another preview while we were waiting, drop the result.
-        if (myToken !== state.previewToken) return;
-        if (!res.ok || !data.url) {
-          stopPreview();
-          alert(data.error || 'Could not load audio preview.');
-          return;
+        let problem = 'Could not load this preview.';
+        for (let attempt = 1; attempt <= PREVIEW_ATTEMPTS; attempt++) {
+          if (attempt > 1) showPreviewMessage(`YouTube is slow with this one. Trying again (${attempt} of ${PREVIEW_ATTEMPTS})...`);
+          let res, data;
+          try {
+            res = await fetch(`/api/preview/${encodeURIComponent(track.id)}`);
+            data = await res.json().catch(() => ({}));
+          } catch {
+            if (myToken !== state.previewToken) return;
+            problem = "Couldn't reach the app. Is it still running?";
+            break;
+          }
+          // Another track was picked while this one loaded: drop the result.
+          if (myToken !== state.previewToken) return;
+          if (res.ok && data.url) {
+            clearPreviewMessage();
+            els.previewAudio.src = data.url;
+            if (startAt) els.previewAudio.currentTime = startAt;
+            try {
+              await els.previewAudio.play();
+              eachPreviewBtn(markPreviewBtnPlaying);  // in case 'playing' was missed
+              return;
+            } catch (err) {
+              if (myToken !== state.previewToken) return;
+              if (err.name === 'NotAllowedError') {  // the browser wants a click first
+                eachPreviewBtn(clearPreviewBtnState);
+                return;
+              }
+              els.previewAudio.removeAttribute('src');
+              els.previewAudio.load();
+              problem = "YouTube didn't serve this preview.";
+              continue;
+            }
+          }
+          problem = data.error || problem;
+          if (res.status !== 502) break;  // only YouTube's hiccups are worth retrying
         }
-        els.previewAudio.src = data.url;
-        await els.previewAudio.play();
-        // 'playing' event handler will mark the buttons; fallback in case event misses:
-        eachPreviewBtn(markPreviewBtnPlaying);
-      } catch (err) {
-        if (myToken !== state.previewToken) return;
-        stopPreview();
-        alert(`Could not play preview: ${err.message}`);
+        failPreview(problem, startAt);
+      } finally {
+        if (myToken === state.previewToken) state.previewLoading = false;
       }
+    }
+
+    // The track stays in Now Playing with a note; play tries again.
+    function failPreview(problem, resumeAt) {
+      state.previewFailed = true;
+      state.resumeAt = resumeAt || 0;
+      els.previewAudio.removeAttribute('src');
+      els.previewAudio.load();
+      eachPreviewBtn(clearPreviewBtnState);
+      showPreviewMessage(`${problem} Press play to try again.`, true);
     }
 
     let currentEventSource = null;
@@ -1917,9 +1995,16 @@
       eachPreviewBtn(clearPreviewBtnState);
       els.previewAudio.currentTime = 0;
     });
+    // The link stopped working mid-track (e.g. it expired). Only a real
+    // failure counts: emptying src, as stopPreview() does, isn't one. While
+    // loading, loadPreview() handles it.
     els.previewAudio.addEventListener('error', () => {
-      // Only a real failure: stopPreview() empties src, which isn't one.
-      if (state.previewVid && els.previewAudio.getAttribute('src')) stopPreview();
+      if (!state.previewVid || state.previewFailed || state.previewLoading
+          || !els.previewAudio.getAttribute('src')) return;
+      failPreview('The YouTube link stopped working.', state.lastTime);
+    });
+    els.previewAudio.addEventListener('timeupdate', () => {
+      if (state.previewVid && els.previewAudio.currentTime > 0) state.lastTime = els.previewAudio.currentTime;
     });
 
     // -------------------- Queues --------------------
@@ -2293,7 +2378,7 @@
           // The track in Now Playing: this row's button mirrors it.
           if (r.id === state.previewVid) {
             state.previewBtn = playBtn;
-            if (!els.previewAudio.getAttribute('src')) markPreviewBtnLoading(playBtn);
+            if (state.previewLoading) markPreviewBtnLoading(playBtn);
             else if (!els.previewAudio.paused) markPreviewBtnPlaying(playBtn);
           }
         }

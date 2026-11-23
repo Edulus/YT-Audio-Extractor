@@ -555,7 +555,7 @@ def api_preview(video_id: str):
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": f"Could not resolve audio: {exc}"}), 500
     if not _stream_ready(data["url"], wait=6):
-        return jsonify({"error": "YouTube didn't serve this preview. Try again in a moment."}), 502
+        return jsonify({"error": "YouTube didn't serve this preview."}), 502
 
     with PREVIEW_CACHE_LOCK:
         PREVIEW_CACHE[video_id] = {**data, "resolved_at": now}
