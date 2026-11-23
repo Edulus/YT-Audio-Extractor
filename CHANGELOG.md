@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.93.1] - 2026-11-23
+
+### Fixed
+- The "choose where to save" folder window on Windows is pinned on top of
+  all other windows and takes focus as soon as it opens, so it can't hide
+  behind the browser.
+
 ## [4.93.0] - 2026-11-23
 
 ### Changed

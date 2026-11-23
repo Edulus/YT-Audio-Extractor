@@ -1218,7 +1218,16 @@ def _windows_folder_dialog(initial: str) -> str | None:
         # An invisible topmost owner keeps the dialog in front of the browser.
         owner = user32.CreateWindowExW(0x00000008 | 0x00000080, "STATIC", None, 0x80000000,  # TOPMOST|TOOLWINDOW, POPUP
                                        0, 0, 0, 0, None, None, None, None)
-        hr = method(dialog, 3, wintypes.HWND)(owner)
+        # Show() blocks until the window closes, so a helper thread pins the
+        # window on top once it appears.
+        shown = threading.Event()
+        threading.Thread(target=_pin_folder_dialog_on_top,
+                         args=(ctypes.windll.kernel32.GetCurrentThreadId(), shown),
+                         daemon=True).start()
+        try:
+            hr = method(dialog, 3, wintypes.HWND)(owner)
+        finally:
+            shown.set()
         if hr == ERROR_CANCELLED_HR:
             return None
         check(hr, "Show")
@@ -1242,6 +1251,40 @@ def _windows_folder_dialog(initial: str) -> str | None:
             method(dialog, 2)()
         if initialised:
             ole32.CoUninitialize()
+
+
+def _pin_folder_dialog_on_top(thread_id: int, closed: threading.Event) -> None:
+    """Make the folder window always-on-top and focused as soon as it shows.
+
+    Windows only lets the foreground app put windows in front, and the
+    browser is the foreground app, so the window can otherwise open behind
+    it. Always-on-top holds it above every other window until it closes.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    user32.FindWindowW.restype = wintypes.HWND
+    user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.c_void_p]
+    user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int, wintypes.UINT]
+    HWND_TOPMOST = wintypes.HWND(-1)
+    SWP_NOSIZE, SWP_NOMOVE, SWP_SHOWWINDOW = 0x0001, 0x0002, 0x0040
+
+    for _ in range(200):  # up to 10 seconds for the window to appear
+        if closed.wait(0.05):
+            return
+        hwnd = user32.FindWindowW("#32770", FOLDER_DIALOG_TITLE)  # #32770: dialog class
+        if hwnd and user32.IsWindowVisible(hwnd) and \
+                user32.GetWindowThreadProcessId(hwnd, None) == thread_id:
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+            user32.keybd_event(0x12, 0, 0, 0)       # Alt tap: lets us take focus
+            user32.keybd_event(0x12, 0, 0x0002, 0)
+            user32.SetForegroundWindow(hwnd)
+            user32.BringWindowToTop(hwnd)
+            return
 
 
 @app.post("/api/choose-folder")
