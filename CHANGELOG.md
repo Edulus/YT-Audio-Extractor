@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.93.0] - 2026-11-23
+
+### Changed
+- Now Playing is a bar fixed to the bottom of the window while a track is
+  loaded, whatever the scroll: play and Next on the left, then the seek
+  bar and volume, then the track with its select box, and close. The
+  search box still sticks to the top while a track is loaded.
+
 ## [4.92.0] - 2026-11-06
 ### Added
 - Now Playing panel for previews: the track's thumbnail, title and

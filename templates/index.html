@@ -394,8 +394,8 @@
       0%, 100% { opacity: 1; }
       50%      { opacity: 0.5; }
     }
-    /* While a preview is loaded, search and Now Playing stick to the top of
-       the window together; the search hint is left out to save room. */
+    /* While a preview is loaded, the search box sticks to the top of the
+       window; the search hint is left out to save room. */
     .top-dock.docked {
       position: sticky;
       top: 0;
@@ -407,14 +407,32 @@
     }
     .top-dock.docked .search-hint { display: none; }
     .top-dock.docked section.block { margin-bottom: 14px; }
-    .np-box {
-      padding: 12px 16px 14px;
-      background: var(--bg-elev-2);
-      border: 1px solid var(--accent);
-      border-radius: var(--radius);
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 0 18px rgba(var(--accent-rgb), 0.12);
+    /* Now Playing: a bar across the bottom of the window, whatever the
+       scroll. The page gets matching room at the bottom so nothing hides
+       behind it. */
+    .now-playing {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 20;
+      background: color-mix(in srgb, var(--bg-elev-2) 94%, transparent);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--accent);
+      box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55), 0 -2px 16px rgba(var(--accent-rgb), 0.12);
     }
-    .np-track { display: flex; align-items: center; gap: 12px; }
+    body.np-open .app { padding-bottom: 96px; }
+    .np-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #np-controls { flex: 1; min-width: 0; }
+    .now-playing .preview-bar { margin-top: 0; }
+    .np-track { display: flex; align-items: center; gap: 10px; width: 330px; flex: none; min-width: 0; }
     .np-check {
       width: 18px;
       height: 18px;
@@ -444,7 +462,7 @@
     }
     .np-title:hover { color: var(--accent); }
     .np-sub { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
-    .play-btn.np-play { width: 32px; height: 32px; flex-shrink: 0; }
+    .play-btn.np-play { width: 36px; height: 36px; flex-shrink: 0; }
     .play-btn.np-play .icon { width: 12px; height: 12px; }
     .np-close {
       width: 26px;
@@ -1113,6 +1131,13 @@
       .result .thumb { width: 72px; height: 40px; }
       .actions { flex-direction: column; gap: 12px; align-items: stretch; }
     }
+    /* Narrow windows: the track goes on its own line above the controls. */
+    @media (max-width: 760px) {
+      .np-inner { flex-wrap: wrap; padding: 8px 16px; row-gap: 6px; }
+      .np-track { order: -1; width: auto; flex: 1 1 calc(100% - 40px); }
+      .np-close { order: -1; }
+      body.np-open .app { padding-bottom: 130px; }
+    }
   </style>
   <script>
     // Theme: an accent hue and a background tint, set with the sliders on
@@ -1218,11 +1243,11 @@
         <h1>YT_Audio<span class="accent">.</span>Extractor</h1>
         <p class="subtitle">extract audio from YouTube videos and/or playlists</p>
       </div>
-      <span class="tag">v4.92</span>
+      <span class="tag">v4.93</span>
     </header>
 
-    <!-- Search and Now Playing: they stick to the top together while a
-         preview is loaded, so the search box stays reachable. -->
+    <!-- Search: sticks to the top while a preview is loaded, so the search
+         box stays reachable. -->
     <div class="top-dock" id="top-dock">
     <!-- Search -->
     <section class="block">
@@ -1254,26 +1279,6 @@
       <div id="search-status"></div>
     </section>
 
-    <!-- Now playing: the previewed track, kept on screen across searches -->
-    <section id="now-playing" class="block now-playing hidden" aria-label="Now playing">
-      <p class="section-label">// Now Playing</p>
-      <div class="np-box">
-      <div class="np-track">
-        <input type="checkbox" class="np-check" title="Select for extraction" aria-label="Select for extraction">
-        <img class="np-thumb" alt="" referrerpolicy="no-referrer">
-        <div class="np-info">
-          <a class="np-title" target="_blank" rel="noopener"></a>
-          <div class="np-sub"></div>
-        </div>
-        <button type="button" class="play-btn np-play" aria-label="Play or pause preview"></button>
-        <button type="button" class="np-next hidden" title="Play the next track in the To Play queue" aria-label="Next track">
-          <svg class="icon" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M1.5 1.5 L6.5 5 L1.5 8.5 Z"/><rect x="7" y="1.5" width="1.6" height="7"/></svg>
-        </button>
-        <button type="button" class="np-close" title="Stop preview" aria-label="Stop preview">&times;</button>
-      </div>
-      <div id="np-controls"></div>
-      </div>
-    </section>
     </div>
 
     <!-- Audio settings -->
@@ -1364,7 +1369,7 @@
         with audio conversion by
         <a href="https://ffmpeg.org" target="_blank" rel="noopener noreferrer">FFmpeg</a>
         &middot;
-        v4.92 &middot;
+        v4.93 &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
         &middot;
         <a href="https://github.com/Edulus/YT-Audio-Extractor/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
@@ -1376,6 +1381,27 @@
       </p>
     </footer>
   </div>
+
+  <!-- Now playing: a bar fixed to the bottom of the window while a track
+       is loaded, whatever the scroll; it outlives new searches. -->
+  <section id="now-playing" class="now-playing hidden" aria-label="Now playing">
+    <div class="np-inner">
+      <button type="button" class="play-btn np-play" aria-label="Play or pause preview"></button>
+      <button type="button" class="np-next hidden" title="Play the next track in the To Play queue" aria-label="Next track">
+        <svg class="icon" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M1.5 1.5 L6.5 5 L1.5 8.5 Z"/><rect x="7" y="1.5" width="1.6" height="7"/></svg>
+      </button>
+      <div id="np-controls"></div>
+      <div class="np-track">
+        <input type="checkbox" class="np-check" title="Select for extraction" aria-label="Select for extraction">
+        <img class="np-thumb" alt="" referrerpolicy="no-referrer">
+        <div class="np-info">
+          <a class="np-title" target="_blank" rel="noopener"></a>
+          <div class="np-sub"></div>
+        </div>
+      </div>
+      <button type="button" class="np-close" title="Stop preview" aria-label="Stop preview">&times;</button>
+    </div>
+  </section>
 
   <!-- Shared audio element for in-row previews. Hidden; controlled entirely via JS. -->
   <audio id="preview-audio" preload="none"></audio>
@@ -1696,8 +1722,8 @@
       btn.innerHTML = PLAY_ICON;
       btn.title = 'Loading...';
     }
-    // Now Playing panel: the previewed track sits above the results, stays on
-    // screen while scrolling, and outlives new searches. The row's own play
+    // Now Playing bar: the previewed track, fixed to the bottom of the
+    // window whatever the scroll, and it outlives new searches. The row's own play
     // button (while that row is listed) mirrors the panel's.
     const np = {
       section: document.getElementById('now-playing'),
@@ -1725,6 +1751,7 @@
       np.sub.textContent = track.uploader || '';
       np.check.checked = state.selectedIds.has(track.id);
       np.section.classList.remove('hidden');
+      document.body.classList.add('np-open');
       np.dock.classList.add('docked');
     }
     np.btn.addEventListener('click', () => {
@@ -1825,6 +1852,7 @@
       state.previewVid = null;
       state.previewTrack = null;
       np.section.classList.add('hidden');
+      document.body.classList.remove('np-open');
       np.dock.classList.remove('docked');
       seekEl.max = 0;
       seekEl.value = 0;
