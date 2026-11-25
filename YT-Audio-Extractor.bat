@@ -106,7 +106,7 @@ REM YouTube changes often and old yt-dlp versions break. Upgrading on every
 REM launch takes a few seconds when already up to date. Failure here is
 REM not fatal ^(e.g. offline^): we keep the installed version.
 echo [4/4] Checking for a newer yt-dlp ^(YouTube changes often, so this runs every launch^)...
-"%PY%" -m pip install --no-cache-dir --no-warn-script-location --disable-pip-version-check -q -U "yt-dlp[default]" >nul 2>&1
+"%PY%" -m pip install --no-cache-dir --no-warn-script-location --disable-pip-version-check -q -U "yt-dlp[default]>=2026.11.23" >nul 2>&1
 if errorlevel 1 (
     echo [WARN] Could not check for updates ^(offline?^). Using the installed version.
 )
